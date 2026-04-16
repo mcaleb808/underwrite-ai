@@ -1,3 +1,11 @@
-def test_placeholder() -> None:
-    """Placeholder until real tests are added."""
-    assert True
+from fastapi.testclient import TestClient
+
+from src.main import app
+
+client = TestClient(app)
+
+
+def test_health_returns_ok():
+    response = client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
