@@ -9,7 +9,7 @@ class Base(DeclarativeBase):
     pass
 
 
-class TaskStatus(str, enum.Enum):
+class TaskStatus(enum.StrEnum):
     queued = "queued"
     running = "running"
     awaiting_review = "awaiting_review"
