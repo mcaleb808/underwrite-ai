@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -6,7 +8,7 @@ class Lab(BaseModel):
     value: str
     unit: str | None = None
     reference_range: str | None = None
-    flag: str | None = None  # "high", "low", "normal"
+    flag: Literal["high", "low", "normal"] | None = None
 
 
 class Vital(BaseModel):
@@ -18,7 +20,7 @@ class Vital(BaseModel):
 class Diagnosis(BaseModel):
     code: str  # short label, e.g. "hypertension", "T2DM"
     description: str
-    status: str | None = None  # "active", "controlled", "resolved"
+    status: Literal["active", "controlled", "resolved"] | None = None
 
 
 class Medication(BaseModel):
