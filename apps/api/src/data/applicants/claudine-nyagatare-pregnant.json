@@ -1,0 +1,22 @@
+{
+  "applicant_id": "claudine-nyagatare-pregnant",
+  "demographics": {
+    "first_name": "Claudine",
+    "last_name": "Iradukunda",
+    "dob": "1991-05-18",
+    "sex": "F",
+    "email": "claudine.iradukunda+demo@example.com",
+    "phone_e164": "+250788000005",
+    "nid": "1199180567890123",
+    "district": "Nyagatare",
+    "province": "Eastern",
+    "ubudehe_category": 1,
+    "cbhi_status": "enrolled"
+  },
+  "occupation": { "title": "Cooperative worker", "class": "II" },
+  "lifestyle": { "tobacco": "none", "alcohol_units_per_week": 0, "exercise_days_per_week": 3 },
+  "vitals": { "height_cm": 162, "weight_kg": 63, "sbp": 122, "dbp": 78 },
+  "declared_history": ["pregnancy", "gestational diabetes"],
+  "sum_insured_rwf": 5000000,
+  "medical_docs": ["medical_pdfs/claudine-nyagatare-pregnant.pdf"]
+}

@@ -1,0 +1,22 @@
+{
+  "applicant_id": "jean-nyanza-controlled-htn",
+  "demographics": {
+    "first_name": "Jean",
+    "last_name": "Habimana",
+    "dob": "1981-07-22",
+    "sex": "M",
+    "email": "jean.habimana+demo@example.com",
+    "phone_e164": "+250788000002",
+    "nid": "1198180234567890",
+    "district": "Nyanza",
+    "province": "Southern",
+    "ubudehe_category": 3,
+    "cbhi_status": "enrolled"
+  },
+  "occupation": { "title": "Secondary school teacher", "class": "I" },
+  "lifestyle": { "tobacco": "none", "alcohol_units_per_week": 4, "exercise_days_per_week": 2 },
+  "vitals": { "height_cm": 175, "weight_kg": 83, "sbp": 136, "dbp": 88 },
+  "declared_history": ["hypertension"],
+  "sum_insured_rwf": 12000000,
+  "medical_docs": ["medical_pdfs/jean-nyanza-controlled-htn.pdf"]
+}

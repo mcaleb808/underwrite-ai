@@ -12,11 +12,12 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    # llm
-    ANTHROPIC_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
-    STRONG_MODEL: str = "claude-sonnet-4-20250514"
-    FAST_MODEL: str = "gpt-4o-mini"
+    # llm (all models via openrouter)
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENAI_API_KEY: str = ""  # for embeddings (text-embedding-3-small)
+    STRONG_MODEL: str = "anthropic/claude-sonnet-4-20250514"
+    FAST_MODEL: str = "openai/gpt-4o-mini"
 
     # database
     DATABASE_URL: str = "sqlite+aiosqlite:///./underwrite.db"
