@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+"""FastAPI application entry point."""
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -25,20 +27,24 @@ app.add_middleware(
 
 
 @app.exception_handler(TaskNotFoundError)
-async def task_not_found_handler(request, exc):
+async def task_not_found_handler(request: Request, exc: TaskNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
 @app.exception_handler(InvalidStateTransitionError)
-async def invalid_transition_handler(request, exc):
+async def invalid_transition_handler(
+    request: Request, exc: InvalidStateTransitionError
+) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 @app.exception_handler(ApplicationValidationError)
-async def validation_error_handler(request, exc):
+async def validation_error_handler(
+    request: Request, exc: ApplicationValidationError
+) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 @app.get("/api/v1/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ok"}

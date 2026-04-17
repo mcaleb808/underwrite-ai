@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class Demographics(BaseModel):
@@ -35,7 +35,7 @@ class Occupation(BaseModel):
     title: str
     class_: Literal["I", "II", "III"] = Field(alias="class")
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ApplicantProfile(BaseModel):

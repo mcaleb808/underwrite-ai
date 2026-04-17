@@ -1,7 +1,9 @@
 """Retrieve relevant underwriting guidelines based on conditions."""
 
+from typing import Any
+
 from src.graph.state import UnderwritingState
 
 
-def run(state: UnderwritingState) -> dict:
+def run(state: UnderwritingState) -> dict[str, Any]:
     return {"events": [{"node": "guidelines_rag", "type": "stub"}]}
