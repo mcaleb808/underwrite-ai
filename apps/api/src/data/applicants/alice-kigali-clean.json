@@ -1,0 +1,22 @@
+{
+  "applicant_id": "alice-kigali-clean",
+  "demographics": {
+    "first_name": "Alice",
+    "last_name": "Uwase",
+    "dob": "1997-03-14",
+    "sex": "F",
+    "email": "alice.uwase+demo@example.com",
+    "phone_e164": "+250788000001",
+    "nid": "1199780123456789",
+    "district": "Nyarugenge",
+    "province": "Kigali",
+    "ubudehe_category": 3,
+    "cbhi_status": "enrolled"
+  },
+  "occupation": { "title": "Office administrator", "class": "I" },
+  "lifestyle": { "tobacco": "none", "alcohol_units_per_week": 2, "exercise_days_per_week": 3 },
+  "vitals": { "height_cm": 165, "weight_kg": 60, "sbp": 118, "dbp": 76 },
+  "declared_history": [],
+  "sum_insured_rwf": 8000000,
+  "medical_docs": ["medical_pdfs/alice-kigali-clean.pdf"]
+}

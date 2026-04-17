@@ -1,0 +1,22 @@
+{
+  "applicant_id": "marie-rubavu-diabetic",
+  "demographics": {
+    "first_name": "Marie",
+    "last_name": "Mukamana",
+    "dob": "1974-01-09",
+    "sex": "F",
+    "email": "marie.mukamana+demo@example.com",
+    "phone_e164": "+250788000003",
+    "nid": "1197480345678901",
+    "district": "Rubavu",
+    "province": "Western",
+    "ubudehe_category": 2,
+    "cbhi_status": "enrolled"
+  },
+  "occupation": { "title": "Market trader", "class": "I" },
+  "lifestyle": { "tobacco": "none", "alcohol_units_per_week": 0, "exercise_days_per_week": 4 },
+  "vitals": { "height_cm": 158, "weight_kg": 77, "sbp": 142, "dbp": 92 },
+  "declared_history": ["type 2 diabetes"],
+  "sum_insured_rwf": 15000000,
+  "medical_docs": ["medical_pdfs/marie-rubavu-diabetic.pdf"]
+}

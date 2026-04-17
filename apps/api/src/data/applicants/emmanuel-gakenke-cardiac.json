@@ -1,0 +1,22 @@
+{
+  "applicant_id": "emmanuel-gakenke-cardiac",
+  "demographics": {
+    "first_name": "Emmanuel",
+    "last_name": "Nsengimana",
+    "dob": "1959-11-30",
+    "sex": "M",
+    "email": "emmanuel.nsengimana+demo@example.com",
+    "phone_e164": "+250788000004",
+    "nid": "1195980456789012",
+    "district": "Gakenke",
+    "province": "Northern",
+    "ubudehe_category": 2,
+    "cbhi_status": "enrolled"
+  },
+  "occupation": { "title": "Retired farmer", "class": "II" },
+  "lifestyle": { "tobacco": "none", "alcohol_units_per_week": 7, "exercise_days_per_week": 1 },
+  "vitals": { "height_cm": 170, "weight_kg": 84, "sbp": 158, "dbp": 96 },
+  "declared_history": ["myocardial infarction", "hypertension", "type 2 diabetes"],
+  "sum_insured_rwf": 20000000,
+  "medical_docs": ["medical_pdfs/emmanuel-gakenke-cardiac.pdf"]
+}
