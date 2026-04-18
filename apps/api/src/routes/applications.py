@@ -8,14 +8,15 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from src.config import settings
-from src.db.models import Application, DecisionRecord, Task, TaskStatus
-from src.db.session import get_session
+from src.db.models import Application, DecisionRecord, Event, Task, TaskStatus
+from src.db.session import get_session, get_session_factory
 from src.exceptions import ApplicationValidationError, TaskNotFoundError
 from src.schemas.api import (
     ApplicationStatusResponse,
@@ -23,6 +24,7 @@ from src.schemas.api import (
     DecisionResponse,
 )
 from src.schemas.applicant import ApplicantProfile
+from src.services import event_bus
 from src.services.orchestrator import run_task
 from src.services.reference import new_reference
 
@@ -127,3 +129,60 @@ async def get_application(
         created_at=task.created_at,
         updated_at=task.updated_at,
     )
+
+
+def _sse(event: dict) -> str:
+    return f"data: {json.dumps(event, default=str)}\n\n"
+
+
+@router.get("/{task_id}/events")
+async def stream_events(
+    task_id: str,
+    sf: Annotated[async_sessionmaker, Depends(get_session_factory)],
+) -> StreamingResponse:
+    """SSE stream of graph events. Replays history, then follows live."""
+
+    async def generator():
+        async with sf() as session:
+            existing_task = (
+                await session.execute(select(Task).where(Task.task_id == task_id))
+            ).scalar_one_or_none()
+            if existing_task is None:
+                yield _sse({"node": "orchestrator", "type": "error", "error": "task not found"})
+                return
+
+            history = (
+                (
+                    await session.execute(
+                        select(Event).where(Event.task_id == task_id).order_by(Event.id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for row in history:
+                yield _sse(
+                    {
+                        "node": row.node,
+                        "type": row.event_type,
+                        "payload": json.loads(row.payload),
+                        "ts": row.timestamp.isoformat(),
+                    }
+                )
+
+            # if the task already finished, no live events will arrive
+            if existing_task.status in {
+                TaskStatus.awaiting_review,
+                TaskStatus.approved,
+                TaskStatus.modified,
+                TaskStatus.sent,
+                TaskStatus.failed,
+            }:
+                yield _sse({"node": "orchestrator", "type": "closed"})
+                return
+
+        async for event in event_bus.stream(task_id):
+            yield _sse(event)
+        yield _sse({"node": "orchestrator", "type": "closed"})
+
+    return StreamingResponse(generator(), media_type="text/event-stream")
