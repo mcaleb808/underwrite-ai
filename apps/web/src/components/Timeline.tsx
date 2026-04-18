@@ -199,7 +199,7 @@ function StatusIcon({ status }: { status: Status }) {
     return (
       <span
         aria-hidden
-        className="relative inline-flex h-5 w-5 items-center justify-center"
+        className="relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-zinc-950"
       >
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-60" />
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500" />
@@ -241,7 +241,7 @@ function StatusIcon({ status }: { status: Status }) {
   return (
     <span
       aria-hidden
-      className="inline-flex h-5 w-5 items-center justify-center rounded-full border-2 border-zinc-300 dark:border-zinc-700"
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border-2 border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
     />
   );
 }
@@ -254,21 +254,16 @@ export function Timeline({ events }: { events: LiveEvent[] }) {
     <ol className="space-y-2">
       {steps.map((step, i) => {
         const isLast = i === steps.length - 1;
-        const nextDone = !isLast && (steps[i + 1]?.status === "done" || step.status === "done");
         return (
           <li key={step.key} className="grid grid-cols-[24px_1fr] gap-x-3">
-            {/* icon column — connector line passes through center */}
+            {/* icon column — connector is anchored top + bottom (no % heights) */}
             <div className="relative flex flex-col items-center">
-              <span
-                aria-hidden
-                className={`absolute left-1/2 top-7 h-[calc(100%+8px)] w-px -translate-x-1/2 ${
-                  isLast
-                    ? "hidden"
-                    : nextDone
-                      ? "bg-emerald-300 dark:bg-emerald-800"
-                      : "bg-zinc-200 dark:bg-zinc-800"
-                }`}
-              />
+              {!isLast ? (
+                <span
+                  aria-hidden
+                  className="absolute left-1/2 top-7 bottom-[-12px] w-px -translate-x-1/2 bg-zinc-200 dark:bg-zinc-800"
+                />
+              ) : null}
               <div className="relative flex h-7 items-center">
                 <StatusIcon status={step.status} />
               </div>
