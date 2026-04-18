@@ -1,20 +1,34 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.config import settings
+from src.db.models import Base
+from src.db.session import engine
 from src.exceptions import (
     ApplicationValidationError,
     InvalidStateTransitionError,
     TaskNotFoundError,
 )
+from src.routes.applications import router as applications_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
 
 app = FastAPI(
     title="UnderwriteAI",
     description="AI-powered health insurance underwriting API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -48,3 +62,6 @@ async def validation_error_handler(
 @app.get("/api/v1/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+app.include_router(applications_router)
