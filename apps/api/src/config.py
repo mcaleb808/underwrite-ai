@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # database
     DATABASE_URL: str = "sqlite+aiosqlite:///./underwrite.db"
     CHROMA_DIR: str = "./chroma_data"
+    UPLOAD_DIR: str = "./uploads"
 
     # cors
     WEB_ORIGIN: str = "http://localhost:3000"
