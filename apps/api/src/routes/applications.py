@@ -17,14 +17,26 @@ from sqlalchemy.orm import selectinload
 from src.config import settings
 from src.db.models import Application, DecisionRecord, Event, Task, TaskStatus
 from src.db.session import get_session, get_session_factory
-from src.exceptions import ApplicationValidationError, TaskNotFoundError
+from src.exceptions import (
+    ApplicationValidationError,
+    InvalidStateTransitionError,
+    TaskNotFoundError,
+)
 from src.schemas.api import (
     ApplicationStatusResponse,
+    ApproveRequest,
+    ApproveResponse,
     CreateApplicationResponse,
     DecisionResponse,
+    ModifyDecisionRequest,
+    ReevalRequest,
+    ReevalResponse,
 )
 from src.schemas.applicant import ApplicantProfile
+from src.schemas.decision import DecisionDraft
 from src.services import event_bus
+from src.services.email import EmailMessage, EmailProvider, get_email_provider
+from src.services.email.render import render as render_email
 from src.services.orchestrator import run_task
 from src.services.reference import new_reference
 
@@ -126,9 +138,127 @@ async def get_application(
         risk_score=task.risk_score,
         risk_band=task.risk_band,
         decision=decision_payload,
+        email_status=record.email_status if record is not None else None,
+        approved_by=record.approved_by if record is not None else None,
         created_at=task.created_at,
         updated_at=task.updated_at,
     )
+
+
+async def _load_task_with_decision(session: AsyncSession, task_id: str) -> Task:
+    task = (
+        await session.execute(
+            select(Task).where(Task.task_id == task_id).options(selectinload(Task.decision))
+        )
+    ).scalar_one_or_none()
+    if task is None:
+        raise TaskNotFoundError(f"task {task_id} not found")
+    return task
+
+
+@router.patch("/{task_id}/decision", response_model=ApplicationStatusResponse)
+async def modify_decision(
+    task_id: str,
+    body: ModifyDecisionRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ApplicationStatusResponse:
+    task = await _load_task_with_decision(session, task_id)
+    record = task.decision
+    if record is None:
+        raise InvalidStateTransitionError("no draft decision to modify yet")
+
+    if body.verdict is not None:
+        record.verdict = body.verdict
+    if body.premium_loading_pct is not None:
+        record.premium_loading_pct = body.premium_loading_pct
+    if body.conditions is not None:
+        record.conditions = json.dumps(body.conditions)
+    if body.reasoning is not None:
+        record.reasoning = body.reasoning
+    task.status = TaskStatus.modified
+    await session.commit()
+
+    return await get_application(task_id, session)
+
+
+@router.post("/{task_id}/approve", response_model=ApproveResponse)
+async def approve_decision(
+    task_id: str,
+    body: ApproveRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    email: Annotated[EmailProvider, Depends(get_email_provider)],
+) -> ApproveResponse:
+    task = await _load_task_with_decision(session, task_id)
+    record = task.decision
+    if record is None:
+        raise InvalidStateTransitionError("no decision to approve yet")
+    if task.status not in {TaskStatus.awaiting_review, TaskStatus.modified}:
+        raise InvalidStateTransitionError(f"cannot approve from status {task.status.value}")
+
+    application = (
+        await session.execute(select(Application).where(Application.id == task.application_id))
+    ).scalar_one()
+    profile = ApplicantProfile.model_validate_json(application.data)
+
+    draft = DecisionDraft(
+        verdict=record.verdict,  # type: ignore[arg-type]
+        premium_loading_pct=record.premium_loading_pct,
+        conditions=json.loads(record.conditions),
+        reasoning=record.reasoning,
+        citations=json.loads(record.citations),
+    )
+
+    to_addr = body.notify_email or profile.demographics.email
+    subject, html, text = render_email(
+        task.reference_number,
+        f"{profile.demographics.first_name} {profile.demographics.last_name}",
+        draft,
+    )
+    result = await email.send(EmailMessage(to=to_addr, subject=subject, html=html, text=text))
+
+    record.approved_by = body.approved_by
+    record.email_status = result.status
+    record.provider_message_id = result.provider_message_id
+    task.status = TaskStatus.sent if result.status == "sent" else TaskStatus.approved
+    await session.commit()
+
+    return ApproveResponse(
+        status=task.status.value,
+        email_status=result.status,
+        provider_message_id=result.provider_message_id,
+    )
+
+
+@router.post("/{task_id}/reeval", response_model=ReevalResponse)
+async def reevaluate(
+    task_id: str,
+    body: ReevalRequest,
+    background: BackgroundTasks,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ReevalResponse:
+    task = await _load_task_with_decision(session, task_id)
+    if task.status in {TaskStatus.queued, TaskStatus.running}:
+        raise InvalidStateTransitionError(
+            "task is already running; wait for it to complete before re-evaluating"
+        )
+
+    application = (
+        await session.execute(select(Application).where(Application.id == task.application_id))
+    ).scalar_one()
+    profile = ApplicantProfile.model_validate_json(application.data)
+
+    if task.decision is not None:
+        await session.delete(task.decision)
+    task.status = TaskStatus.reeval
+    await session.commit()
+
+    upload_root = Path(settings.UPLOAD_DIR) / task_id
+    paths = sorted(str(p) for p in upload_root.glob("*")) if upload_root.exists() else []
+    if not paths:
+        paths = list(profile.medical_docs)
+
+    background.add_task(run_task, task_id, profile, paths)
+    return ReevalResponse(task_id=task_id, status=task.status.value)
 
 
 def _sse(event: dict) -> str:

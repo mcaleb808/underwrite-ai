@@ -36,6 +36,8 @@ export type ApplicationStatus = {
   risk_band: RiskBand | null;
   risk_factors: RiskFactor[];
   decision: DecisionPayload | null;
+  email_status: string | null;
+  approved_by: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -1,7 +1,9 @@
 import type {
   ApplicationStatus,
   CreateApplicationResponse,
+  DecisionPayload,
   PersonaSummary,
+  Verdict,
 } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -46,3 +48,52 @@ export async function getApplication(taskId: string): Promise<ApplicationStatus>
 export function eventsUrl(taskId: string): string {
   return `${API}/api/v1/applications/${taskId}/events`;
 }
+
+export type ModifyDecisionPatch = {
+  verdict?: Verdict;
+  premium_loading_pct?: number;
+  conditions?: string[];
+  reasoning?: string;
+};
+
+export async function modifyDecision(
+  taskId: string,
+  patch: ModifyDecisionPatch,
+): Promise<ApplicationStatus> {
+  const res = await fetch(`${API}/api/v1/applications/${taskId}/decision`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`failed to modify: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+export async function approveDecision(
+  taskId: string,
+  approvedBy: string,
+  notifyEmail?: string,
+): Promise<{ status: string; email_status: string; provider_message_id: string | null }> {
+  const res = await fetch(`${API}/api/v1/applications/${taskId}/approve`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ approved_by: approvedBy, notify_email: notifyEmail }),
+  });
+  if (!res.ok) throw new Error(`failed to approve: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+export async function reevaluate(
+  taskId: string,
+  note?: string,
+): Promise<{ task_id: string; status: string }> {
+  const res = await fetch(`${API}/api/v1/applications/${taskId}/reeval`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) throw new Error(`failed to reeval: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+export type { DecisionPayload };

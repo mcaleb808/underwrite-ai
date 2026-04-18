@@ -15,6 +15,7 @@ from src.db.models import Base
 from src.db.session import get_session, get_session_factory
 from src.main import app
 from src.routes import applications as applications_route
+from src.services.email import EmailMessage, SendResult, get_email_provider
 
 
 @pytest.fixture
@@ -55,10 +56,27 @@ def stub_orchestrator(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Any, l
     return calls
 
 
+class FakeEmailProvider:
+    name = "fake"
+
+    def __init__(self) -> None:
+        self.sent: list[EmailMessage] = []
+
+    async def send(self, msg: EmailMessage) -> SendResult:
+        self.sent.append(msg)
+        return SendResult(status="sent", provider_message_id=f"fake-{len(self.sent)}")
+
+
+@pytest.fixture
+def fake_email() -> FakeEmailProvider:
+    return FakeEmailProvider()
+
+
 @pytest.fixture
 def client(
     session_factory: async_sessionmaker[AsyncSession],
     stub_orchestrator: list,
+    fake_email: FakeEmailProvider,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> TestClient:
@@ -70,6 +88,7 @@ def client(
 
     app.dependency_overrides[get_session] = override
     app.dependency_overrides[get_session_factory] = lambda: session_factory
+    app.dependency_overrides[get_email_provider] = lambda: fake_email
     try:
         yield TestClient(app)
     finally:
