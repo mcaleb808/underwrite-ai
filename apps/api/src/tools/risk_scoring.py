@@ -52,6 +52,24 @@ _HIGH_RISK_PREGNANCY_TERMS = (
     "multiple gestation",
 )
 
+_AGE_BAND_LABELS: dict[str, str] = {
+    "18_30": "18-30 (young adult)",
+    "31_45": "31-45 (working age)",
+    "46_55": "46-55 (mid-life)",
+    "56_65": "56-65 (pre-retirement)",
+    "66_70": "66-70 (senior)",
+    "out_of_range": "outside the underwriting range",
+}
+
+_BMI_LABELS: dict[str, str] = {
+    "underweight": "underweight",
+    "normal": "normal weight range",
+    "overweight": "above the healthy range",
+    "obese_1": "obese class I",
+    "obese_2": "obese class II",
+    "obese_3": "obese class III",
+}
+
 
 @dataclass
 class RiskAssessment:
@@ -114,7 +132,7 @@ def assess_risk(
             value=age_points,
             contribution=age_points,
             source="declared",
-            evidence=f"age={age} -> band {age_band}",
+            evidence=f"Age {age} — {_AGE_BAND_LABELS.get(age_band, age_band)}",
         )
     )
 
@@ -128,13 +146,19 @@ def assess_risk(
             value=bmi_points,
             contribution=bmi_points,
             source="declared",
-            evidence=f"BMI={bmi} -> {bmi_class}",
+            evidence=f"BMI {bmi:.1f} — {_BMI_LABELS.get(bmi_class, bmi_class)}",
         )
     )
 
     htn = _classify_htn(profile)
     htn_points = {"none": 0.0, "controlled": 15.0, "uncontrolled": 35.0}[htn]
     if htn != "none":
+        sbp = profile.vitals.sbp
+        dbp = profile.vitals.dbp
+        bp_part = f"Blood pressure {sbp}/{dbp} mmHg" if sbp and dbp else "Blood pressure"
+        status_part = (
+            "controlled with medication" if htn == "controlled" else "currently uncontrolled"
+        )
         factors.append(
             RiskFactor(
                 name=f"htn_{htn}",
@@ -142,15 +166,18 @@ def assess_risk(
                 value=htn_points,
                 contribution=htn_points,
                 source="declared",
-                evidence=(
-                    f"SBP={profile.vitals.sbp} DBP={profile.vitals.dbp}; declared={htn != 'none'}"
-                ),
+                evidence=f"{bp_part} — {status_part}",
             )
         )
 
     dm = _classify_dm(profile)
     dm_points = {"none": 0.0, "controlled": 25.0, "borderline": 40.0, "uncontrolled": 60.0}[dm]
     if dm != "none":
+        dm_status = {
+            "controlled": "treated and stable (no recent HbA1c on file)",
+            "borderline": "borderline control",
+            "uncontrolled": "uncontrolled",
+        }[dm]
         factors.append(
             RiskFactor(
                 name=f"dm_{dm}",
@@ -158,7 +185,7 @@ def assess_risk(
                 value=dm_points,
                 contribution=dm_points,
                 source="declared",
-                evidence="declared diabetes; HbA1c not parsed yet, default controlled",
+                evidence=f"Diabetes — {dm_status}",
             )
         )
 
@@ -171,12 +198,16 @@ def assess_risk(
                 value=cardiac_points,
                 contribution=cardiac_points,
                 source="declared",
-                evidence="declared cardiac event/condition",
+                evidence="Reported a past cardiac event or condition",
             )
         )
 
     tobacco_points = 15.0 if profile.lifestyle.tobacco != "none" else 0.0
     if tobacco_points:
+        tobacco_label = {
+            "occasional": "Smokes occasionally",
+            "daily": "Smokes daily",
+        }.get(profile.lifestyle.tobacco, "Tobacco use reported")
         factors.append(
             RiskFactor(
                 name="tobacco",
@@ -184,7 +215,7 @@ def assess_risk(
                 value=tobacco_points,
                 contribution=tobacco_points,
                 source="declared",
-                evidence=f"tobacco={profile.lifestyle.tobacco}",
+                evidence=tobacco_label,
             )
         )
 
@@ -197,7 +228,10 @@ def assess_risk(
                 value=alcohol_points,
                 contribution=alcohol_points,
                 source="declared",
-                evidence=f"{profile.lifestyle.alcohol_units_per_week} units/week",
+                evidence=(
+                    f"{profile.lifestyle.alcohol_units_per_week} drinks per week"
+                    " (above the 21-unit limit)"
+                ),
             )
         )
 
@@ -212,7 +246,7 @@ def assess_risk(
                 value=pregnancy_points,
                 contribution=pregnancy_points,
                 source="declared",
-                evidence="declared high-risk pregnancy markers (UW-100)",
+                evidence="Pregnancy with high-risk markers reported (UW-100)",
             )
         )
 
@@ -226,13 +260,18 @@ def assess_risk(
                 contribution=district_points,
                 source="district",
                 evidence=(
-                    f"{profile.demographics.district} malaria-driven loading (UW-070, capped 10)"
+                    f"{profile.demographics.district} has higher malaria prevalence"
+                    " (UW-070 endemic loading)"
                 ),
             )
         )
 
     occupation_points = {"I": 0.0, "II": 8.0, "III": 22.0}[profile.occupation.class_]
     if occupation_points:
+        class_descriptor = {
+            "II": "manual / outdoor work",
+            "III": "hazardous work",
+        }.get(profile.occupation.class_, "")
         factors.append(
             RiskFactor(
                 name=f"occupation_class_{profile.occupation.class_}",
@@ -240,7 +279,11 @@ def assess_risk(
                 value=occupation_points,
                 contribution=occupation_points,
                 source="declared",
-                evidence=f"{profile.occupation.title} (class {profile.occupation.class_})",
+                evidence=(
+                    f"{profile.occupation.title} — {class_descriptor}"
+                    if class_descriptor
+                    else profile.occupation.title
+                ),
             )
         )
 
@@ -253,7 +296,7 @@ def assess_risk(
                 value=comorbid_points,
                 contribution=comorbid_points,
                 source="computed",
-                evidence="hypertension + diabetes co-morbidity (UW-030)",
+                evidence="Hypertension and diabetes occurring together (UW-030)",
             )
         )
 
