@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.db.models import Base
-from src.db.session import get_session
+from src.db.session import get_session, get_session_factory
 from src.main import app
 from src.routes import applications as applications_route
 
@@ -69,6 +69,7 @@ def client(
             yield session
 
     app.dependency_overrides[get_session] = override
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
     try:
         yield TestClient(app)
     finally:
