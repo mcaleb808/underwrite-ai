@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { DecisionCard } from "@/components/DecisionCard";
+import { MedicalDocs } from "@/components/MedicalDocs";
 import { ReviewActions } from "@/components/ReviewActions";
+import { RiskFactors } from "@/components/RiskFactors";
 import { Timeline } from "@/components/Timeline";
 import { eventsUrl, getApplication } from "@/lib/api";
 import type { ApplicationStatus, LiveEvent } from "@/lib/types";
@@ -69,6 +71,10 @@ export function Live({ initial }: { initial: ApplicationStatus }) {
         </h2>
         <Timeline events={events} />
       </section>
+
+      {status.risk_factors.length > 0 ? <RiskFactors factors={status.risk_factors} /> : null}
+
+      <MedicalDocs taskId={initial.task_id} />
 
       {status.decision ? (
         <>

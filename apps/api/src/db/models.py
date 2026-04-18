@@ -41,6 +41,7 @@ class Task(Base):
     status: Mapped[TaskStatus] = mapped_column(Enum(TaskStatus), default=TaskStatus.queued)
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     risk_band: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    risk_factors_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

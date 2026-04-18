@@ -7,8 +7,8 @@ import uuid
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -23,6 +23,7 @@ from src.exceptions import (
     TaskNotFoundError,
 )
 from src.schemas.api import (
+    ApplicationListItem,
     ApplicationStatusResponse,
     ApproveRequest,
     ApproveResponse,
@@ -33,7 +34,7 @@ from src.schemas.api import (
     ReevalResponse,
 )
 from src.schemas.applicant import ApplicantProfile
-from src.schemas.decision import DecisionDraft
+from src.schemas.decision import DecisionDraft, RiskFactor
 from src.services import event_bus
 from src.services.email import EmailMessage, EmailProvider, get_email_provider
 from src.services.email.render import render as render_email
@@ -43,8 +44,11 @@ from src.services.reference import new_reference
 router = APIRouter(prefix="/api/v1/applications", tags=["applications"])
 
 
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+
 async def _save_uploads(task_id: str, files: list[UploadFile]) -> list[str]:
-    target_dir = Path(settings.UPLOAD_DIR) / task_id
+    target_dir = (Path(settings.UPLOAD_DIR) / task_id).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     saved: list[str] = []
     for upload in files:
@@ -54,6 +58,23 @@ async def _save_uploads(task_id: str, files: list[UploadFile]) -> list[str]:
         dest.write_bytes(await upload.read())
         saved.append(str(dest))
     return saved
+
+
+def _copy_seed_docs(task_id: str, profile: ApplicantProfile) -> list[str]:
+    """Persona runs ship their PDFs in src/data/. Copy them into the task's
+    upload dir so the same files are downloadable from the dashboard and
+    the doc_parser sees them at deterministic absolute paths."""
+    target_dir = (Path(settings.UPLOAD_DIR) / task_id).resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    out: list[str] = []
+    for rel in profile.medical_docs:
+        src = DATA_DIR / rel
+        if not src.is_file():
+            continue
+        dest = target_dir / src.name
+        dest.write_bytes(src.read_bytes())
+        out.append(str(dest))
+    return out
 
 
 @router.post("", response_model=CreateApplicationResponse, status_code=202)
@@ -72,6 +93,8 @@ async def create_application(
     task_id = uuid.uuid4().hex
     reference = new_reference()
     paths = await _save_uploads(task_id, medical_docs) if medical_docs else []
+    if not paths and profile.medical_docs:
+        paths = _copy_seed_docs(task_id, profile)
 
     existing = (
         await session.execute(
@@ -107,6 +130,35 @@ async def create_application(
     )
 
 
+@router.get("", response_model=list[ApplicationListItem])
+async def list_applications(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> list[ApplicationListItem]:
+    rows = (
+        await session.execute(
+            select(Task, Application.applicant_id, DecisionRecord.verdict)
+            .join(Application, Task.application_id == Application.id)
+            .join(DecisionRecord, DecisionRecord.task_id == Task.task_id, isouter=True)
+            .order_by(Task.created_at.desc())
+            .limit(limit)
+        )
+    ).all()
+    return [
+        ApplicationListItem(
+            task_id=task.task_id,
+            reference_number=task.reference_number,
+            status=task.status.value,
+            risk_score=task.risk_score,
+            risk_band=task.risk_band,
+            verdict=verdict,
+            applicant_id=applicant_id,
+            created_at=task.created_at,
+        )
+        for task, applicant_id, verdict in rows
+    ]
+
+
 @router.get("/{task_id}", response_model=ApplicationStatusResponse, name="get_application")
 async def get_application(
     task_id: str,
@@ -131,12 +183,20 @@ async def get_application(
             citations=json.loads(record.citations),
         )
 
+    risk_factors: list[RiskFactor] = []
+    if task.risk_factors_json:
+        try:
+            risk_factors = [RiskFactor(**f) for f in json.loads(task.risk_factors_json)]
+        except (ValueError, TypeError):
+            risk_factors = []
+
     return ApplicationStatusResponse(
         task_id=task.task_id,
         reference_number=task.reference_number,
         status=task.status.value,
         risk_score=task.risk_score,
         risk_band=task.risk_band,
+        risk_factors=risk_factors,
         decision=decision_payload,
         email_status=record.email_status if record is not None else None,
         approved_by=record.approved_by if record is not None else None,
@@ -261,6 +321,29 @@ async def reevaluate(
     return ReevalResponse(task_id=task_id, status=task.status.value)
 
 
+@router.get("/{task_id}/files", response_model=list[str])
+async def list_files(task_id: str) -> list[str]:
+    """List filenames of medical PDFs uploaded for this task."""
+    upload_dir = (Path(settings.UPLOAD_DIR) / task_id).resolve()
+    if not upload_dir.exists():
+        return []
+    return sorted(p.name for p in upload_dir.iterdir() if p.is_file())
+
+
+@router.get("/{task_id}/files/{filename}")
+async def get_file(task_id: str, filename: str) -> FileResponse:
+    """Stream a single uploaded medical document."""
+    base = (Path(settings.UPLOAD_DIR) / task_id).resolve()
+    target = (base / filename).resolve()
+    # path traversal guard: target must be a child of base
+    if base not in target.parents or not target.is_file():
+        raise TaskNotFoundError(f"file {filename} not found for task {task_id}")
+    media_type = (
+        "application/pdf" if target.suffix.lower() == ".pdf" else "application/octet-stream"
+    )
+    return FileResponse(target, media_type=media_type, filename=target.name)
+
+
 def _sse(event: dict) -> str:
     return f"data: {json.dumps(event, default=str)}\n\n"
 
@@ -291,14 +374,12 @@ async def stream_events(
                 .all()
             )
             for row in history:
-                yield _sse(
-                    {
-                        "node": row.node,
-                        "type": row.event_type,
-                        "payload": json.loads(row.payload),
-                        "ts": row.timestamp.isoformat(),
-                    }
-                )
+                # Flatten the persisted payload so replayed events match the
+                # live stream's shape (the timeline reads top-level fields).
+                payload = json.loads(row.payload)
+                event = {**payload, "node": row.node, "type": row.event_type}
+                event["ts"] = row.timestamp.isoformat()
+                yield _sse(event)
 
             # if the task already finished, no live events will arrive
             if existing_task.status in {

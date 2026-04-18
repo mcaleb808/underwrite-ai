@@ -99,6 +99,10 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
         task = (await session.execute(select(Task).where(Task.task_id == task_id))).scalar_one()
         task.risk_score = final.get("risk_score")
         task.risk_band = final.get("risk_band")
+        factors = final.get("risk_factors") or []
+        task.risk_factors_json = json.dumps(
+            [f.model_dump() if hasattr(f, "model_dump") else dict(f) for f in factors]
+        )
         task.status = TaskStatus.awaiting_review if decision is not None else TaskStatus.failed
         await session.commit()
 

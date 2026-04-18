@@ -1,3 +1,4 @@
+import { RecentApplications } from "@/components/RecentApplications";
 import { RunButton } from "@/components/RunButton";
 import { listPersonas } from "@/lib/api";
 
@@ -15,6 +16,9 @@ export default async function Home() {
         </p>
       </header>
 
+      <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        Seed applicants
+      </h2>
       <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
         {personas.map((p) => (
           <li
@@ -38,6 +42,8 @@ export default async function Home() {
           </li>
         ))}
       </ul>
+
+      <RecentApplications />
     </main>
   );
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,29 @@ from src.db.session import get_session, get_session_factory
 from src.main import app
 from src.routes import applications as applications_route
 from src.services.email import EmailMessage, SendResult, get_email_provider
+
+_DATA_DIR = Path(__file__).resolve().parent.parent / "src" / "data"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_seed_pdfs() -> None:
+    """Make sure every persona's referenced medical PDFs exist on disk.
+
+    The real PDFs are gitignored generated artifacts. CI doesn't have them,
+    and several routes (notably create_application -> _copy_seed_docs) read
+    them from src/data/medical_pdfs/. Write a tiny PDF stub for any missing
+    file so tests don't depend on dev-machine state.
+    """
+    pdfs_dir = _DATA_DIR / "medical_pdfs"
+    pdfs_dir.mkdir(parents=True, exist_ok=True)
+    for persona_path in (_DATA_DIR / "applicants").glob("*.json"):
+        persona = json.loads(persona_path.read_text())
+        for rel in persona.get("medical_docs", []):
+            target = _DATA_DIR / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                # Minimal valid PDF header — pypdf can open it as 0-page doc
+                target.write_bytes(b"%PDF-1.4\n%%EOF\n")
 
 
 @pytest.fixture
