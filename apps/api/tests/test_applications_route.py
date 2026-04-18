@@ -37,7 +37,10 @@ def test_create_application_returns_202_and_task_id(
     captured_task_id, captured_applicant, captured_paths = stub_orchestrator[0]
     assert captured_task_id == body["task_id"]
     assert captured_applicant.applicant_id == "alice-kigali-clean"
-    assert captured_paths == []
+    # persona has a seed PDF -> copied into the upload dir for download
+    assert len(captured_paths) == 1
+    assert captured_paths[0].endswith("alice-kigali-clean.pdf")
+    assert Path(captured_paths[0]).is_file()
 
 
 def test_create_application_persists_uploaded_pdfs(

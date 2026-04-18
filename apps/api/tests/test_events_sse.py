@@ -110,7 +110,8 @@ def test_events_replays_history_and_closes_for_finished_task(
     events = _parse_sse(body)
     assert len(events) == 2
     assert events[0]["node"] == "risk_assessor"
-    assert events[0]["payload"] == {"score": 42, "band": "moderate"}
+    assert events[0]["score"] == 42
+    assert events[0]["band"] == "moderate"
     assert events[1] == {"node": "orchestrator", "type": "closed"}
 
 
