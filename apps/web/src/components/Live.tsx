@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { DecisionCard } from "@/components/DecisionCard";
+import { ReviewActions } from "@/components/ReviewActions";
 import { Timeline } from "@/components/Timeline";
 import { eventsUrl, getApplication } from "@/lib/api";
 import type { ApplicationStatus, LiveEvent } from "@/lib/types";
@@ -69,7 +70,12 @@ export function Live({ initial }: { initial: ApplicationStatus }) {
         <Timeline events={events} />
       </section>
 
-      {status.decision ? <DecisionCard decision={status.decision} /> : null}
+      {status.decision ? (
+        <>
+          <DecisionCard decision={status.decision} />
+          <ReviewActions status={status} onChange={setStatus} />
+        </>
+      ) : null}
     </div>
   );
 }
