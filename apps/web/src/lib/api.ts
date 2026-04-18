@@ -1,8 +1,10 @@
 import type {
+  ApplicantProfile,
   ApplicationListItem,
   ApplicationStatus,
   CreateApplicationResponse,
   DecisionPayload,
+  District,
   PersonaSummary,
   Verdict,
 } from "./types";
@@ -35,6 +37,32 @@ export async function createApplicationFromPersona(
     const body = await res.text();
     throw new Error(`failed to create application: ${res.status} ${body}`);
   }
+  return res.json();
+}
+
+export async function createApplication(
+  profile: ApplicantProfile,
+  files: File[],
+): Promise<CreateApplicationResponse> {
+  const form = new FormData();
+  form.append("applicant", JSON.stringify(profile));
+  for (const file of files) {
+    form.append("medical_docs", file);
+  }
+  const res = await fetch(`${API}/api/v1/applications`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`failed to create application: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function listDistricts(): Promise<District[]> {
+  const res = await fetch(`${API}/api/v1/districts`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`failed to list districts: ${res.status}`);
   return res.json();
 }
 

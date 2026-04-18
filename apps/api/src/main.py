@@ -15,6 +15,7 @@ from src.exceptions import (
     TaskNotFoundError,
 )
 from src.routes.applications import router as applications_router
+from src.routes.districts import router as districts_router
 from src.routes.personas import router as personas_router
 
 
@@ -67,3 +68,4 @@ async def health() -> dict[str, str]:
 
 app.include_router(applications_router)
 app.include_router(personas_router)
+app.include_router(districts_router)
