@@ -150,7 +150,7 @@ contract.
 ## RAG over the underwriting manual
 
 The manual is a single markdown file with one H2 section per rule
-(`UW-001`–`UW-140`). The chunker (`src/rag/chunks.py`) splits on `^## `, parses
+(`UW-001`–`UW-140`). The chunker (`src/rag/chunks.py`) splits on each H2 heading, parses
 the rule id from the heading, and uses the entire section as one chunk. There
 are only 15 rules, so chunk-splitting strategies (semantic, recursive, sliding
 window) would be overkill — chunk-by-section maps 1:1 to the underwriter's
