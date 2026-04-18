@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENAI_API_KEY: str = ""  # for embeddings (text-embedding-3-small)
-    STRONG_MODEL: str = "anthropic/claude-sonnet-4-20250514"
+    STRONG_MODEL: str = "anthropic/claude-sonnet-4.5"
     FAST_MODEL: str = "openai/gpt-4o-mini"
 
     # database
