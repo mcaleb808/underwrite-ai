@@ -49,6 +49,17 @@ export type CreateApplicationResponse = {
   status_url: string;
 };
 
+export type ApplicationListItem = {
+  task_id: string;
+  reference_number: string;
+  status: string;
+  risk_score: number | null;
+  risk_band: RiskBand | null;
+  verdict: Verdict | null;
+  applicant_id: string;
+  created_at: string;
+};
+
 export type LiveEvent = {
   node: string;
   type: string;

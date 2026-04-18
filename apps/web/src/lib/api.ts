@@ -1,4 +1,5 @@
 import type {
+  ApplicationListItem,
   ApplicationStatus,
   CreateApplicationResponse,
   DecisionPayload,
@@ -43,6 +44,26 @@ export async function getApplication(taskId: string): Promise<ApplicationStatus>
   });
   if (!res.ok) throw new Error(`failed to load task ${taskId}: ${res.status}`);
   return res.json();
+}
+
+export async function listApplications(limit = 20): Promise<ApplicationListItem[]> {
+  const res = await fetch(`${API}/api/v1/applications?limit=${limit}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`failed to list applications: ${res.status}`);
+  return res.json();
+}
+
+export async function listFiles(taskId: string): Promise<string[]> {
+  const res = await fetch(`${API}/api/v1/applications/${taskId}/files`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`failed to list files: ${res.status}`);
+  return res.json();
+}
+
+export function fileUrl(taskId: string, filename: string): string {
+  return `${API}/api/v1/applications/${taskId}/files/${encodeURIComponent(filename)}`;
 }
 
 export function eventsUrl(taskId: string): string {
