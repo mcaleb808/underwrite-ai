@@ -254,20 +254,28 @@ export function Timeline({ events }: { events: LiveEvent[] }) {
     <ol className="space-y-2">
       {steps.map((step, i) => {
         const isLast = i === steps.length - 1;
+        const nextDone = !isLast && (steps[i + 1]?.status === "done" || step.status === "done");
         return (
-          <li key={step.key} className="relative">
-            {!isLast ? (
+          <li key={step.key} className="grid grid-cols-[24px_1fr] gap-x-3">
+            {/* icon column — connector line passes through center */}
+            <div className="relative flex flex-col items-center">
               <span
                 aria-hidden
-                className={`absolute left-[18px] top-9 h-[calc(100%-12px)] w-px ${
-                  step.status === "done"
-                    ? "bg-emerald-300 dark:bg-emerald-800"
-                    : "bg-zinc-200 dark:bg-zinc-800"
+                className={`absolute left-1/2 top-7 h-[calc(100%+8px)] w-px -translate-x-1/2 ${
+                  isLast
+                    ? "hidden"
+                    : nextDone
+                      ? "bg-emerald-300 dark:bg-emerald-800"
+                      : "bg-zinc-200 dark:bg-zinc-800"
                 }`}
               />
-            ) : null}
+              <div className="relative flex h-7 items-center">
+                <StatusIcon status={step.status} />
+              </div>
+            </div>
+            {/* content column */}
             <div
-              className={`flex items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
+              className={`rounded-lg border px-4 py-2.5 transition-colors ${
                 step.status === "active"
                   ? "border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/40"
                   : step.status === "done"
@@ -275,10 +283,7 @@ export function Timeline({ events }: { events: LiveEvent[] }) {
                     : "border-zinc-200 bg-zinc-50/40 dark:border-zinc-800 dark:bg-zinc-950/60"
               }`}
             >
-              <div className="pt-0.5">
-                <StatusIcon status={step.status} />
-              </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <div className="flex items-baseline justify-between gap-3">
                   <h3
                     className={`text-sm font-medium ${

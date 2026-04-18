@@ -135,14 +135,9 @@ export function DecisionCard({ decision }: { decision: DecisionPayload }) {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
               Conditions you&apos;ll need to satisfy
             </h3>
-            <ul className="mt-2 space-y-1.5 text-sm text-zinc-800 dark:text-zinc-200">
+            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-zinc-800 marker:text-amber-500 dark:text-zinc-200">
               {decision.conditions.map((c, i) => (
-                <li key={i} className="flex gap-2">
-                  <span aria-hidden className="mt-1 shrink-0 text-amber-500">
-                    •
-                  </span>
-                  <span>{c}</span>
-                </li>
+                <li key={i}>{c}</li>
               ))}
             </ul>
           </div>
