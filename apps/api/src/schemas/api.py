@@ -15,6 +15,17 @@ class CreateApplicationResponse(BaseModel):
     status_url: str
 
 
+class ApplicationListItem(BaseModel):
+    task_id: str
+    reference_number: str
+    status: str
+    risk_score: float | None
+    risk_band: str | None
+    verdict: str | None
+    applicant_id: str
+    created_at: datetime
+
+
 class DecisionResponse(BaseModel):
     verdict: str
     premium_loading_pct: float
