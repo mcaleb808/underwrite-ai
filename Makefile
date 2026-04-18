@@ -18,7 +18,6 @@ format:
 
 seed:
 	cd apps/api && uv run python -m src.scripts.seed_chroma
-	cd apps/api && uv run python -m src.scripts.seed_demo_data
 
 smoke:
 	cd apps/api && uv run python -m src.scripts.smoke_test
