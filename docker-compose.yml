@@ -1,0 +1,42 @@
+# Quickstart: docker compose up --build
+# Seed Chroma once: docker compose run --rm api uv run python -m src.scripts.seed_chroma
+# Required env in apps/api/.env: OPENROUTER_API_KEY, OPENAI_API_KEY.
+
+services:
+  api:
+    build:
+      context: ./apps/api
+    image: underwrite-api:dev
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./apps/api/.env
+    environment:
+      WEB_ORIGIN: http://localhost:3000
+      DATABASE_URL: sqlite+aiosqlite:////data/app.db
+      CHROMA_DIR: /data/chroma
+      UPLOAD_DIR: /data/uploads
+      LOG_LEVEL: INFO
+    volumes:
+      - api-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    image: underwrite-web:dev
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  api-data:
