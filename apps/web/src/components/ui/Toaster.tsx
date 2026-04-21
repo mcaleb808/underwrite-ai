@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+import { useIsClient } from "./useIsClient";
 
 export type ToastTone = "success" | "error" | "info";
 
@@ -19,13 +21,8 @@ const TONE_STYLES: Record<ToastTone, string> = {
   info: "border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100",
 };
 
-function useIsClient(): boolean {
-  return useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
-}
+const SHOW_DELAY_MS = 10;
+const DISMISS_AFTER_MS = 4000;
 
 export function Toaster({
   toasts,
@@ -44,23 +41,36 @@ export function Toaster({
       className="pointer-events-none fixed left-1/2 top-4 z-50 flex w-full max-w-sm -translate-x-1/2 flex-col items-center gap-2 px-4"
     >
       {toasts.map((t) => (
-        <ToastItem key={t.id} toast={t} onDismiss={() => onDismiss(t.id)} />
+        <ToastItem key={t.id} toast={t} onDismiss={onDismiss} />
       ))}
     </div>,
     document.body,
   );
 }
 
-function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+function ToastItem({
+  toast,
+  onDismiss,
+}: {
+  toast: Toast;
+  onDismiss: (id: number) => void;
+}) {
   const [visible, setVisible] = useState(false);
+  // Stash the latest onDismiss so the dismiss timer arms exactly once per
+  // toast — a new onDismiss identity from the parent must not reset it.
+  const dismissRef = useRef(onDismiss);
   useEffect(() => {
-    const show = window.setTimeout(() => setVisible(true), 10);
-    const hide = window.setTimeout(onDismiss, 4000);
+    dismissRef.current = onDismiss;
+  }, [onDismiss]);
+
+  useEffect(() => {
+    const show = window.setTimeout(() => setVisible(true), SHOW_DELAY_MS);
+    const hide = window.setTimeout(() => dismissRef.current(toast.id), DISMISS_AFTER_MS);
     return () => {
       window.clearTimeout(show);
       window.clearTimeout(hide);
     };
-  }, [onDismiss]);
+  }, [toast.id]);
 
   return (
     <div
@@ -72,7 +82,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <span className="flex-1">{toast.message}</span>
       <button
         type="button"
-        onClick={onDismiss}
+        onClick={() => onDismiss(toast.id)}
         aria-label="Dismiss"
         className="shrink-0 text-xs opacity-60 hover:opacity-100"
       >
