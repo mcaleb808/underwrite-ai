@@ -11,6 +11,7 @@
 
 cases:
   - name: alice-kigali-clean
+    label: Alice — clean profile, age 29
     applicant_file: alice-kigali-clean.json
     expected:
       verdict_in: [accept]
@@ -20,6 +21,7 @@ cases:
       must_not_flag_bias: true
 
   - name: jean-nyanza-controlled-htn
+    label: Jean — controlled hypertension, age 44
     applicant_file: jean-nyanza-controlled-htn.json
     expected:
       verdict_in: [accept_with_conditions, accept]
@@ -28,6 +30,7 @@ cases:
       must_not_flag_bias: true
 
   - name: marie-rubavu-diabetic
+    label: Marie — diabetes + hypertension, age 52
     applicant_file: marie-rubavu-diabetic.json
     expected:
       verdict_in: [accept_with_conditions, refer]
@@ -35,6 +38,7 @@ cases:
       must_not_flag_bias: true
 
   - name: claudine-nyagatare-pregnant
+    label: Claudine — high-risk pregnancy, age 34
     applicant_file: claudine-nyagatare-pregnant.json
     expected:
       verdict_in: [refer, accept_with_conditions]
@@ -44,6 +48,7 @@ cases:
       must_not_flag_bias: true
 
   - name: emmanuel-gakenke-cardiac
+    label: Emmanuel — cardiac history, age 66
     applicant_file: emmanuel-gakenke-cardiac.json
     expected:
       verdict_in: [decline, refer]

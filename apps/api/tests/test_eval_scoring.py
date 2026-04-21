@@ -1,11 +1,20 @@
 """Pure-Python tests for the eval-suite scorer (no LLM required)."""
 
-from src.scripts.run_eval import CaseResult, Expected, Suite, _check_case, _render_report
+from src.scripts.run_eval import (
+    CaseResult,
+    Expected,
+    Suite,
+    _check_case,
+    _humanize_check,
+    _humanize_verdict,
+    _render_report,
+)
 
 
 def _observed(**overrides: object) -> CaseResult:
     base: dict[str, object] = {
         "name": "test",
+        "label": "Test — sample case",
         "verdict": "accept",
         "band": "low",
         "loading": 0.0,
@@ -56,9 +65,10 @@ def test_bias_flag_blocks_pass() -> None:
 
 
 def test_render_report_shows_pass_count_and_failures() -> None:
-    passing = _observed(name="alice")
+    passing = _observed(name="alice", label="Alice — clean")
     failing = _observed(
         name="bob",
+        label="Bob — high risk",
         verdict="decline",
         checks=[],
     )
@@ -66,10 +76,14 @@ def test_render_report_shows_pass_count_and_failures() -> None:
 
     report = _render_report([passing, failing])
 
-    assert "1/2 cases passing (50%)" in report
-    assert "alice" in report and "bob" in report
-    assert "## Failures" in report
-    assert "verdict" in report
+    assert "1 out of 2 cases passing" in report
+    assert "Alice — clean" in report and "Bob — high risk" in report
+    assert "## Where the system fell short" in report
+    assert "didn't match what the rules call for" in report
+    # mermaid charts are present
+    assert "```mermaid" in report
+    assert "pie showData" in report
+    assert "xychart-beta" in report
 
 
 def test_yaml_schema_round_trips() -> None:
@@ -77,6 +91,7 @@ def test_yaml_schema_round_trips() -> None:
         "cases": [
             {
                 "name": "x",
+                "label": "X — sample",
                 "applicant_file": "x.json",
                 "expected": {"verdict_in": ["accept"], "band": "low"},
             }
@@ -84,4 +99,20 @@ def test_yaml_schema_round_trips() -> None:
     }
     suite = Suite.model_validate(raw)
     assert suite.cases[0].expected.verdict_in == ["accept"]
+    assert suite.cases[0].label == "X — sample"
     assert suite.cases[0].expected.must_not_flag_bias is True
+
+
+def test_humanize_verdict_maps_known_values() -> None:
+    assert _humanize_verdict("accept") == "Approve"
+    assert _humanize_verdict("accept_with_conditions") == "Approve with conditions"
+    assert _humanize_verdict("decline") == "Decline"
+    # unknown value falls back to a readable form
+    assert _humanize_verdict("special_case") == "Special case"
+
+
+def test_humanize_check_explains_known_failure_types() -> None:
+    assert "verdict didn't match" in _humanize_check("verdict", "got x, expected y")
+    assert "bias flag" in _humanize_check("no bias flag", "")
+    assert "premium uplift" in _humanize_check("loading_max", "got 50, expected <= 30")
+    assert "UW-040" in _humanize_check("cites UW-040", "")
