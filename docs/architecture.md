@@ -303,16 +303,23 @@ stateDiagram-v2
 
 ## Email providers
 
-`services/email/providers.py` defines an `EmailProvider` Protocol and three
-implementations: `console` (logs to stdout — the dev default), `resend`
-(via the Resend API), and `smtp` (via aiosmtplib). The factory
-`get_email_provider()` picks one based on `settings.EMAIL_PROVIDER` and is
-injected into the approve route via `Depends`. Tests swap in a `FakeEmailProvider`
-that captures sent messages without touching the network.
+`services/email/providers.py` defines an `EmailProvider` Protocol and two
+implementations: `console` (logs to stdout — the dev default) and `resend`
+(via the Resend API). The factory `get_email_provider()` picks one based on
+`settings.EMAIL_PROVIDER` and is injected into the approve route via `Depends`.
+Tests swap in a `FakeEmailProvider` that captures sent messages without
+touching the network.
 
-`services/email/render.py` produces a plain-text + HTML email from a
-`DecisionDraft`. There's no template engine — three short f-strings are
-clearer than Jinja for two formats.
+When `EMAIL_OVERRIDE_TO` is set, a `_resolve_recipient()` helper reroutes
+every outbound message to that address and emits an `email_override`
+structlog event for auditability. Production leaves it empty.
+
+`services/email/composer.py` generates the customer-facing subject and body
+via a single `FAST_MODEL` call, with a tight system prompt that forbids
+internal rule IDs, risk scores, the raw verdict enum, and numeric premium
+percentages. A deterministic template fallback fires if the LLM call
+exhausts retries so a failed approve never ships an empty email.
+`services/email/render.py` wraps the composed body in minimal HTML.
 
 ## Tradeoffs
 

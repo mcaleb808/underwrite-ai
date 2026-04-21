@@ -106,6 +106,21 @@ def client(
 ) -> TestClient:
     monkeypatch.setattr("src.config.settings.UPLOAD_DIR", str(tmp_path / "uploads"))
 
+    # Stub the email composer so route tests don't burn real LLM credits.
+    from src.services.email import composer as composer_mod
+
+    def _stub_compose(reference, first_name, decision):
+        return composer_mod.ComposedEmail(
+            subject=f"UnderwriteAI - Reference {reference}",
+            body=(
+                f"Dear {first_name},\n\n"
+                f"This is a deterministic test-stub email body for {reference}.\n\n"
+                f"— UnderwriteAI"
+            ),
+        )
+
+    monkeypatch.setattr(composer_mod, "compose", _stub_compose)
+
     async def override() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
             yield session
