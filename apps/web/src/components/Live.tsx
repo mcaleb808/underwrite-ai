@@ -8,12 +8,27 @@ import { MedicalDocs } from "@/components/MedicalDocs";
 import { ReviewActions } from "@/components/ReviewActions";
 import { RiskFactors } from "@/components/RiskFactors";
 import { Timeline } from "@/components/Timeline";
+import { UsagePill, type Usage } from "@/components/UsagePill";
 import { eventsUrl, getApplication } from "@/lib/api";
 import type { ApplicationStatus, LiveEvent } from "@/lib/types";
+
+function readUsage(event: LiveEvent): Usage | null {
+  if (event.node !== "orchestrator" || event.type !== "usage") return null;
+  return {
+    prompt_tokens: Number(event.prompt_tokens ?? 0),
+    completion_tokens: Number(event.completion_tokens ?? 0),
+    total_tokens: Number(event.total_tokens ?? 0),
+    cost_usd: Number(event.cost_usd ?? 0),
+    calls: Number(event.calls ?? 0),
+  };
+}
 
 export function Live({ initial }: { initial: ApplicationStatus }) {
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [status, setStatus] = useState<ApplicationStatus>(initial);
+  const [usage, setUsage] = useState<Usage | undefined>(undefined);
+  const [finished, setFinished] = useState(false);
+  const [startedAt] = useState(() => Date.now());
   const sourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -23,8 +38,14 @@ export function Live({ initial }: { initial: ApplicationStatus }) {
     source.onmessage = (msg) => {
       try {
         const event = JSON.parse(msg.data) as LiveEvent;
-        setEvents((prev) => [...prev, event]);
-        if (event.type === "closed" || event.type === "finalized") {
+        const updatedUsage = readUsage(event);
+        if (updatedUsage) {
+          setUsage(updatedUsage);
+        } else {
+          setEvents((prev) => [...prev, event]);
+        }
+        if (event.type === "closed" || event.type === "finalized" || event.type === "error") {
+          setFinished(true);
           // refresh status to pull the final decision
           getApplication(initial.task_id).then(setStatus).catch(() => {});
         }
@@ -45,7 +66,7 @@ export function Live({ initial }: { initial: ApplicationStatus }) {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-baseline justify-between">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
             {initial.reference_number}
@@ -57,12 +78,15 @@ export function Live({ initial }: { initial: ApplicationStatus }) {
               : ""}
           </p>
         </div>
-        <Link
-          href="/"
-          className="text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400"
-        >
-          ← back
-        </Link>
+        <div className="flex items-center gap-3">
+          <UsagePill usage={usage} startedAt={startedAt} finished={finished} />
+          <Link
+            href="/"
+            className="text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400"
+          >
+            ← back
+          </Link>
+        </div>
       </header>
 
       <section>
