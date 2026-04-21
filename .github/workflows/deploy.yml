@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "apps/api/**"
-      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 concurrency:
@@ -13,8 +12,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prereq:
+    name: Check deploy is configured
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          WIF: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        run: |
+          if [ -n "$WIF" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "GCP_WORKLOAD_IDENTITY_PROVIDER is not set — deploy will skip until terraform apply has run and the GCP_* secrets are populated. See infra/README.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
   deploy:
     name: Build + push + roll Cloud Run
+    needs: prereq
+    if: needs.prereq.outputs.ready == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
