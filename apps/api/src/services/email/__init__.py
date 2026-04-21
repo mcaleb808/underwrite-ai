@@ -1,13 +1,4 @@
-"""Email provider abstraction.
-
-Three providers, picked by `settings.EMAIL_PROVIDER`:
-- console: log the rendered email to stdout (dev default)
-- resend:  POST via Resend API
-- smtp:    aiosmtplib (Gmail, etc.)
-
-The factory returns a single `EmailProvider` shaped by Protocol so callers can
-swap providers without conditionals.
-"""
+"""Email provider abstraction. Pick via settings.EMAIL_PROVIDER (resend or console)."""
 
 from src.services.email.providers import (
     EmailMessage,

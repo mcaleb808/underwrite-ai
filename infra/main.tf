@@ -45,7 +45,7 @@ module "secrets" {
   secret_ids = [
     "OPENROUTER_API_KEY",
     "OPENAI_API_KEY",
-    "SENDGRID_API_KEY",
+    "RESEND_API_KEY",
   ]
   name_suffix = local.name_suffix
   labels      = local.labels

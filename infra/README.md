@@ -5,7 +5,7 @@ Terraform stack for the api on Google Cloud Run, fronted by Vercel.
 ## What this provisions
 
 - **Artifact Registry** — Docker repo for the api image, with a cleanup policy that keeps the last 3 tagged versions and deletes untagged images after 7 days.
-- **Cloud Run service** — `min=0` / `max=1` (single instance for consistent per-instance sqlite state), 1 vCPU / 2 GB, scale-to-zero. Pulls `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `SENDGRID_API_KEY` from Secret Manager.
+- **Cloud Run service** — `min=0` / `max=1` (single instance for consistent per-instance sqlite state), 1 vCPU / 2 GB, scale-to-zero. Pulls `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `RESEND_API_KEY` from Secret Manager.
 - **Secret Manager** — three secrets, accessible only to the runtime service account.
 - **Runtime service account** — least-privilege: `secretAccessor` on each secret, `logging.logWriter` on the project. Nothing else.
 - **Workload Identity Federation** — lets the `main` branch of a specific GitHub repo impersonate a deploy service account without a JSON key in the repo. Feature branches and forks cannot.
@@ -61,7 +61,7 @@ After the first apply, populate the secret values once (Terraform creates the se
 ```bash
 echo -n "${OPENROUTER_API_KEY}" | gcloud secrets versions add OPENROUTER_API_KEY_demo --data-file=-
 echo -n "${OPENAI_API_KEY}"     | gcloud secrets versions add OPENAI_API_KEY_demo     --data-file=-
-echo -n "${SENDGRID_API_KEY}"   | gcloud secrets versions add SENDGRID_API_KEY_demo   --data-file=-
+echo -n "${RESEND_API_KEY}"     | gcloud secrets versions add RESEND_API_KEY_demo     --data-file=-
 ```
 
 ## GitHub Actions setup
