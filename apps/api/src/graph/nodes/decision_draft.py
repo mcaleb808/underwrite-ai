@@ -30,6 +30,7 @@ def _llm() -> ChatOpenAI:
         api_key=settings.OPENROUTER_API_KEY,
         base_url=settings.OPENROUTER_BASE_URL,
         temperature=0,
+        timeout=60,
         callbacks=[llm_observability],
     )
 
@@ -81,10 +82,27 @@ def run(state: UnderwritingState) -> dict[str, Any]:
         if critique.suggestions:
             user_parts.append("Suggestions:\n" + "\n".join(f"- {s}" for s in critique.suggestions))
 
-    structured = _llm().with_structured_output(DecisionDraft)
-    draft = structured.invoke(
-        [SystemMessage(content=SYSTEM), HumanMessage(content="\n".join(user_parts))]
+    structured = (
+        _llm()
+        .with_structured_output(DecisionDraft)
+        .with_retry(stop_after_attempt=2, wait_exponential_jitter=True)
     )
+    try:
+        draft = structured.invoke(
+            [SystemMessage(content=SYSTEM), HumanMessage(content="\n".join(user_parts))]
+        )
+    except Exception as exc:
+        log.error("node_end", status="failed", error=repr(exc))
+        return {
+            "events": [
+                {
+                    "node": "decision_draft",
+                    "type": "error",
+                    "error": repr(exc),
+                    "is_revision": is_revision,
+                }
+            ],
+        }
 
     log.info(
         "node_end",
