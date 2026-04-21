@@ -47,3 +47,6 @@ appendix/
 # scratch
 .playwright-mcp/
 *.png
+
+# Local-only AI assistant notes — do not commit
+CLAUDE.md
