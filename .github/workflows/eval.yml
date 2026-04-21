@@ -1,0 +1,32 @@
+name: Eval
+
+# Manual-only — running the eval suite calls real LLMs and costs ~$0.05 per
+# invocation, so we never trigger it on push or PR. Trigger from the Actions
+# tab when you want a fresh report.
+on:
+  workflow_dispatch:
+
+jobs:
+  eval:
+    name: Run golden-case eval
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - run: uv sync --frozen
+      - run: uv run python -m src.scripts.seed_chroma
+      - run: uv run python -m src.scripts.run_eval
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: docs/eval-report.md
