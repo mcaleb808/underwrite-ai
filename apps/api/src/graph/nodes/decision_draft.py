@@ -9,6 +9,9 @@ from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.applicant import ApplicantProfile
 from src.schemas.decision import DecisionDraft, GuidelineChunk, RiskFactor
+from src.services.log import bind_node, get_logger, llm_observability
+
+log = get_logger(__name__)
 
 SYSTEM = (
     "You are a senior underwriter for a Rwandan health insurer."
@@ -27,6 +30,7 @@ def _llm() -> ChatOpenAI:
         api_key=settings.OPENROUTER_API_KEY,
         base_url=settings.OPENROUTER_BASE_URL,
         temperature=0,
+        callbacks=[llm_observability],
     )
 
 
@@ -54,12 +58,14 @@ def _format_applicant(p: ApplicantProfile) -> str:
 
 
 def run(state: UnderwritingState) -> dict[str, Any]:
+    bind_node(state, "decision_draft")
     profile = state["applicant"]
     factors = state.get("risk_factors") or []
     chunks = state.get("retrieved_guidelines") or []
     score = state.get("risk_score", 0.0)
     band = state.get("risk_band", "low")
     critique = state.get("critique")
+    is_revision = critique is not None
 
     user_parts = [
         f"## Applicant\n{_format_applicant(profile)}",
@@ -80,6 +86,15 @@ def run(state: UnderwritingState) -> dict[str, Any]:
         [SystemMessage(content=SYSTEM), HumanMessage(content="\n".join(user_parts))]
     )
 
+    log.info(
+        "node_end",
+        status="done",
+        verdict=draft.verdict,
+        premium_loading_pct=draft.premium_loading_pct,
+        citation_count=len(draft.citations),
+        is_revision=is_revision,
+    )
+
     return {
         "decision": draft,
         "events": [
@@ -89,7 +104,7 @@ def run(state: UnderwritingState) -> dict[str, Any]:
                 "verdict": draft.verdict,
                 "premium_loading_pct": draft.premium_loading_pct,
                 "citations": draft.citations,
-                "is_revision": critique is not None,
+                "is_revision": is_revision,
             }
         ],
     }

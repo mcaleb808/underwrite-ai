@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import Protocol
 
 from src.config import settings
+from src.services.log import get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 @dataclass
@@ -36,7 +36,12 @@ class ConsoleProvider:
     name = "console"
 
     async def send(self, msg: EmailMessage) -> SendResult:
-        log.info("email[console] -> %s | %s\n%s", msg.to, msg.subject, msg.text or msg.html)
+        log.info(
+            "email_console",
+            to=msg.to,
+            subject=msg.subject,
+            body=(msg.text or msg.html)[:1000],
+        )
         return SendResult(status="sent", provider_message_id="console-noop")
 
 
