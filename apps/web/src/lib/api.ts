@@ -9,7 +9,12 @@ import type {
   Verdict,
 } from "./types";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Server-side renders use INTERNAL_API_URL (docker service hostname);
+// the browser uses the publicly-reachable NEXT_PUBLIC_API_URL.
+const API =
+  typeof window === "undefined"
+    ? (process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
+    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
 
 export async function listPersonas(): Promise<PersonaSummary[]> {
   const res = await fetch(`${API}/api/v1/personas`, { cache: "no-store" });
