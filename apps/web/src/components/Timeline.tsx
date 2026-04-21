@@ -147,14 +147,8 @@ function buildStepStates(events: LiveEvent[]): {
   }
 
   const order: StepKey[] = ["doc_parser", "risk_assessor", "guidelines_rag", "decision_draft", "critic"];
+  const activeIdx = activeKey ? order.indexOf(activeKey) : -1;
   const seenIdx = order.findIndex((k) => grouped[k].length > 0);
-  const lastSeenIdx = (() => {
-    let idx = -1;
-    order.forEach((k, i) => {
-      if (grouped[k].length > 0) idx = i;
-    });
-    return idx;
-  })();
 
   const steps: StepState[] = STEPS.map((meta, i) => {
     const stepEvents = grouped[meta.key];
@@ -169,10 +163,12 @@ function buildStepStates(events: LiveEvent[]): {
       status = stepEvents.length > 0 ? "done" : "pending";
     } else if (activeKey === meta.key) {
       status = "active";
-    } else if (i < lastSeenIdx) {
-      status = "done";
-    } else if (stepEvents.length > 0 && i <= lastSeenIdx) {
-      // Step has fired but isn't the latest — done.
+    } else if (activeIdx >= 0 && i > activeIdx) {
+      // The graph has looped back to an earlier step; later steps will re-run,
+      // so don't show them as done for this iteration. Any past events are
+      // surfaced via the `reruns` badge below.
+      status = "pending";
+    } else if (stepEvents.length > 0 && (activeIdx < 0 || i < activeIdx)) {
       status = "done";
     } else if (seenIdx >= 0 && i < seenIdx) {
       status = "pending";
