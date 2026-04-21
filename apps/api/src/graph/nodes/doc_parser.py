@@ -8,6 +8,7 @@ from langchain_openai import ChatOpenAI
 
 from src.config import settings
 from src.graph.state import UnderwritingState
+from src.schemas.events import DocParserParsed
 from src.schemas.medical import ParsedMedicalRecord
 from src.services.log import bind_node, get_logger, llm_observability
 from src.tools.pdf_extract import extract_text
@@ -87,14 +88,7 @@ def run(state: UnderwritingState) -> dict[str, Any]:
 
     update: dict[str, Any] = {
         "parsed_medical": parsed,
-        "events": [
-            {
-                "node": "doc_parser",
-                "type": "parsed",
-                "doc_count": len(parsed),
-                "error_count": len(errors),
-            }
-        ],
+        "events": [DocParserParsed(doc_count=len(parsed), error_count=len(errors))],
     }
     if errors:
         update["errors"] = errors

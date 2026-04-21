@@ -3,6 +3,7 @@
 from typing import Any
 
 from src.graph.state import UnderwritingState
+from src.schemas.events import RiskAssessorScored
 from src.services.log import bind_node, get_logger
 from src.tools.risk_scoring import assess_risk
 
@@ -26,12 +27,10 @@ def run(state: UnderwritingState) -> dict[str, Any]:
         "risk_band": result.band,
         "risk_factors": result.factors,
         "events": [
-            {
-                "node": "risk_assessor",
-                "type": "score",
-                "score": result.score,
-                "band": result.band,
-                "factor_count": len(result.factors),
-            }
+            RiskAssessorScored(
+                score=result.score,
+                band=result.band,
+                factor_count=len(result.factors),
+            )
         ],
     }

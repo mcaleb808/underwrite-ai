@@ -72,9 +72,9 @@ def test_decision_draft_returns_error_event_when_llm_fails(
     assert "decision" not in update
     events = update["events"]
     assert len(events) == 1
-    assert events[0]["node"] == "decision_draft"
-    assert events[0]["type"] == "error"
-    assert "openrouter went down" in events[0]["error"]
+    assert events[0].node == "decision_draft"
+    assert events[0].type == "error"
+    assert "openrouter went down" in events[0].error
 
 
 def test_critic_returns_error_event_when_llm_fails(
@@ -105,6 +105,6 @@ def test_critic_returns_error_event_when_llm_fails(
     assert update["revision_count"] == 1
     events = update["events"]
     assert len(events) == 1
-    assert events[0]["node"] == "critic"
-    assert events[0]["type"] == "error"
-    assert "openrouter went down" in events[0]["error"]
+    assert events[0].node == "critic"
+    assert events[0].type == "error"
+    assert "openrouter went down" in events[0].error
