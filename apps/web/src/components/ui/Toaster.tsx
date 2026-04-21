@@ -21,7 +21,7 @@ export function Toaster({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
     <div
       role="region"
       aria-label="Notifications"
-      className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2"
+      className="pointer-events-none fixed left-1/2 top-4 z-50 flex w-full max-w-sm -translate-x-1/2 flex-col items-center gap-2 px-4"
     >
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} onDismiss={() => onDismiss(t.id)} />
@@ -46,7 +46,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       role={toast.tone === "error" ? "alert" : "status"}
       className={`pointer-events-auto flex items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg transition-all duration-200 ${
         TONE_STYLES[toast.tone]
-      } ${visible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
+      } ${visible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"}`}
     >
       <span className="flex-1">{toast.message}</span>
       <button
