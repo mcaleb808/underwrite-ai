@@ -78,6 +78,7 @@ class LLMObservability(BaseCallbackHandler):
     def __init__(self) -> None:
         self._start: dict[str, float] = {}
         self._task_usage: dict[str, dict[str, float]] = {}
+        self._lifetime_usage: dict[str, float] = _empty_usage()
         self._log = get_logger("llm")
 
     def reset_task(self, task_id: str) -> None:
@@ -85,6 +86,9 @@ class LLMObservability(BaseCallbackHandler):
 
     def get_usage(self, task_id: str) -> dict[str, float]:
         return self._task_usage.get(task_id, _empty_usage())
+
+    def get_lifetime_usage(self) -> dict[str, float]:
+        return dict(self._lifetime_usage)
 
     def discard_task(self, task_id: str) -> None:
         self._task_usage.pop(task_id, None)
@@ -96,18 +100,21 @@ class LLMObservability(BaseCallbackHandler):
         completion_tokens: int,
         total_tokens: int,
     ) -> None:
+        cost = estimate_cost(model, prompt_tokens, completion_tokens)
+        for bucket in (self._task_bucket(), self._lifetime_usage):
+            if bucket is None:
+                continue
+            bucket["prompt_tokens"] += prompt_tokens
+            bucket["completion_tokens"] += completion_tokens
+            bucket["total_tokens"] += total_tokens
+            bucket["cost_usd"] = round(bucket["cost_usd"] + cost, 6)
+            bucket["calls"] += 1
+
+    def _task_bucket(self) -> dict[str, float] | None:
         task_id = structlog.contextvars.get_contextvars().get("task_id")
         if not task_id or task_id not in self._task_usage:
-            return
-        bucket = self._task_usage[task_id]
-        bucket["prompt_tokens"] += prompt_tokens
-        bucket["completion_tokens"] += completion_tokens
-        bucket["total_tokens"] += total_tokens
-        bucket["cost_usd"] = round(
-            bucket["cost_usd"] + estimate_cost(model, prompt_tokens, completion_tokens),
-            6,
-        )
-        bucket["calls"] += 1
+            return None
+        return self._task_usage[task_id]
 
     def on_llm_start(
         self,
