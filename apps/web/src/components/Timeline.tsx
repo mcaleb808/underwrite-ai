@@ -61,6 +61,7 @@ type StepState = {
   summary: string | null;
   reruns: number;
   hasIssues: boolean;
+  errorMessage: string | null;
 };
 
 function summarize(key: StepKey, latest: LiveEvent | undefined): string | null {
@@ -158,8 +159,11 @@ function buildStepStates(events: LiveEvent[]): {
   const steps: StepState[] = STEPS.map((meta, i) => {
     const stepEvents = grouped[meta.key];
     const latest = stepEvents[stepEvents.length - 1];
+    const stepErrored = stepEvents.some((e) => e.type === "error");
     let status: Status = "pending";
-    if (failed && stepEvents.length > 0) {
+    if (stepErrored) {
+      status = "error";
+    } else if (failed && stepEvents.length > 0) {
       status = "done";
     } else if (finalized) {
       status = stepEvents.length > 0 ? "done" : "pending";
@@ -180,6 +184,9 @@ function buildStepStates(events: LiveEvent[]): {
     // Reruns = number of events on this step beyond the first.
     const reruns = Math.max(0, stepEvents.length - 1);
 
+    const errorEvent = stepErrored ? stepEvents.find((e) => e.type === "error") : undefined;
+    const errorMessage = errorEvent ? humanizeError(errorEvent.error) : null;
+
     return {
       key: meta.key,
       label: meta.label,
@@ -188,10 +195,25 @@ function buildStepStates(events: LiveEvent[]): {
       summary: summarize(meta.key, latest),
       reruns,
       hasIssues,
+      errorMessage,
     };
   });
 
   return { steps, finalized, failed };
+}
+
+function humanizeError(raw: unknown): string {
+  const text = typeof raw === "string" ? raw : "";
+  if (/timeout|timed out/i.test(text)) {
+    return "The AI service didn't respond in time. We've already retried once — try running this again.";
+  }
+  if (/rate.?limit|429/i.test(text)) {
+    return "We hit the AI provider's rate limit. Wait a moment and run this again.";
+  }
+  if (/openrouter|openai|anthropic/i.test(text)) {
+    return "The AI provider returned an error. Check the provider status and re-run this case.";
+  }
+  return "This step couldn't complete. Re-run the case to try again.";
 }
 
 function StatusIcon({ status }: { status: Status }) {
@@ -247,8 +269,9 @@ function StatusIcon({ status }: { status: Status }) {
 }
 
 export function Timeline({ events }: { events: LiveEvent[] }) {
-  const { steps, finalized } = useMemo(() => buildStepStates(events), [events]);
+  const { steps, finalized, failed } = useMemo(() => buildStepStates(events), [events]);
   const allPending = steps.every((s) => s.status === "pending");
+  const hasError = steps.some((s) => s.status === "error") || failed;
 
   return (
     <ol className="space-y-2">
@@ -273,9 +296,11 @@ export function Timeline({ events }: { events: LiveEvent[] }) {
               className={`rounded-lg border px-4 py-2.5 transition-colors ${
                 step.status === "active"
                   ? "border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/40"
-                  : step.status === "done"
-                    ? "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-                    : "border-zinc-200 bg-zinc-50/40 dark:border-zinc-800 dark:bg-zinc-950/60"
+                  : step.status === "error"
+                    ? "border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/40"
+                    : step.status === "done"
+                      ? "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+                      : "border-zinc-200 bg-zinc-50/40 dark:border-zinc-800 dark:bg-zinc-950/60"
               }`}
             >
               <div className="min-w-0">
@@ -284,7 +309,9 @@ export function Timeline({ events }: { events: LiveEvent[] }) {
                     className={`text-sm font-medium ${
                       step.status === "pending"
                         ? "text-zinc-400 dark:text-zinc-500"
-                        : "text-zinc-900 dark:text-zinc-50"
+                        : step.status === "error"
+                          ? "text-red-700 dark:text-red-300"
+                          : "text-zinc-900 dark:text-zinc-50"
                     }`}
                   >
                     {step.label}
@@ -299,10 +326,14 @@ export function Timeline({ events }: { events: LiveEvent[] }) {
                   className={`mt-0.5 text-xs ${
                     step.status === "pending"
                       ? "text-zinc-400 dark:text-zinc-600"
-                      : "text-zinc-500 dark:text-zinc-400"
+                      : step.status === "error"
+                        ? "text-red-700/90 dark:text-red-300/90"
+                        : "text-zinc-500 dark:text-zinc-400"
                   }`}
                 >
-                  {step.summary ?? step.description}
+                  {step.status === "error"
+                    ? (step.errorMessage ?? "This step couldn't complete.")
+                    : (step.summary ?? step.description)}
                 </p>
                 {step.hasIssues && step.status === "done" ? (
                   <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
@@ -317,6 +348,10 @@ export function Timeline({ events }: { events: LiveEvent[] }) {
       {allPending ? (
         <p className="pt-2 text-center text-xs text-zinc-400 dark:text-zinc-500">
           Waiting for the pipeline to start…
+        </p>
+      ) : hasError ? (
+        <p className="pt-2 text-center text-xs text-red-600 dark:text-red-400">
+          Pipeline stopped before producing a decision — re-run this case to try again.
         </p>
       ) : finalized ? (
         <p className="pt-2 text-center text-xs text-emerald-600 dark:text-emerald-400">

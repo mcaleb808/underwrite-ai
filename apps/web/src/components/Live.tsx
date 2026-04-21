@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { DecisionCard } from "@/components/DecisionCard";
+import { FailureCard } from "@/components/FailureCard";
 import { MedicalDocs } from "@/components/MedicalDocs";
 import { ReviewActions } from "@/components/ReviewActions";
 import { RiskFactors } from "@/components/RiskFactors";
@@ -105,6 +106,8 @@ export function Live({ initial }: { initial: ApplicationStatus }) {
           <DecisionCard decision={status.decision} />
           <ReviewActions status={status} onChange={setStatus} />
         </>
+      ) : status.status === "failed" ? (
+        <FailureCard taskId={initial.task_id} />
       ) : null}
     </div>
   );
