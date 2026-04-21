@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
+import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,15 +16,28 @@ from src.exceptions import (
     InvalidStateTransitionError,
     TaskNotFoundError,
 )
+from src.rag.ingest import ensure_seeded
 from src.routes.applications import router as applications_router
 from src.routes.districts import router as districts_router
 from src.routes.personas import router as personas_router
+from src.services.log import get_logger
+
+log = get_logger(__name__)
+
+_GUIDELINES_PATH = Path(__file__).resolve().parent / "data" / "guidelines.md"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    if settings.OPENAI_API_KEY:
+        loop = asyncio.get_running_loop()
+        added = await loop.run_in_executor(
+            None, ensure_seeded, _GUIDELINES_PATH, settings.CHROMA_DIR
+        )
+        if added:
+            log.info("chroma_seeded", chunks=added, persist_dir=settings.CHROMA_DIR)
     yield
 
 
