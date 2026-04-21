@@ -10,6 +10,12 @@ from src.services.email.providers import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default to no override so each test opts in explicitly."""
+    monkeypatch.setattr("src.services.email.providers.settings.EMAIL_OVERRIDE_TO", "")
+
+
 def _msg() -> EmailMessage:
     return EmailMessage(
         to="recipient@example.com",
@@ -82,3 +88,33 @@ def test_factory_picks_provider_from_settings(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr("src.services.email.providers.settings.EMAIL_PROVIDER", "console")
     assert isinstance(get_email_provider(), ConsoleProvider)
+
+
+async def test_resend_override_reroutes_recipient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.services.email.providers.settings.RESEND_API_KEY", "re_test")
+    monkeypatch.setattr(
+        "src.services.email.providers.settings.EMAIL_OVERRIDE_TO", "ops@example.com"
+    )
+
+    sent: list[dict] = []
+
+    def _fake_send(params: dict) -> dict:
+        sent.append(params)
+        return {"id": "msg_x"}
+
+    import resend
+
+    monkeypatch.setattr(resend.Emails, "send", staticmethod(_fake_send))
+
+    msg = EmailMessage(to="anyone@example.com", subject="x", html="<p>x</p>", text="x")
+    await ResendProvider().send(msg)
+
+    assert sent[0]["to"] == ["ops@example.com"]
+
+
+async def test_override_unset_passes_through(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("src.services.email.providers.settings.EMAIL_OVERRIDE_TO", "")
+    result = await ConsoleProvider().send(_msg())
+    assert result.status == "sent"

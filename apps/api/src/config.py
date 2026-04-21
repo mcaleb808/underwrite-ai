@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     EMAIL_REPLY_TO: str = "underwriting@underwriteai.rw"
     INSURER_NAME: str = "UnderwriteAI Demo Insurer"
     RESEND_API_KEY: str = ""
+    # When set, every outbound email is rerouted to this address. Use during
+    # local testing so seed-persona @example.com recipients (or Resend's
+    # verified-inbox-only restriction) don't drop messages.
+    EMAIL_OVERRIDE_TO: str = ""
 
     # observability
     LANGSMITH_API_KEY: str = ""

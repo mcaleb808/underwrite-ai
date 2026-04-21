@@ -33,13 +33,22 @@ class EmailProvider(Protocol):
     async def send(self, msg: EmailMessage) -> SendResult: ...
 
 
+def _resolve_recipient(requested: str) -> str:
+    override = settings.EMAIL_OVERRIDE_TO
+    if override and override != requested:
+        log.info("email_override", requested=requested, rerouted_to=override)
+        return override
+    return requested
+
+
 class ConsoleProvider:
     name = "console"
 
     async def send(self, msg: EmailMessage) -> SendResult:
+        to = _resolve_recipient(msg.to)
         log.info(
             "email_console",
-            to=msg.to,
+            to=to,
             subject=msg.subject,
             body=(msg.text or msg.html)[:1000],
         )
@@ -56,10 +65,11 @@ class ResendProvider:
 
         import resend
 
+        to = _resolve_recipient(msg.to)
         resend.api_key = settings.RESEND_API_KEY
         params: dict = {
             "from": settings.EMAIL_FROM,
-            "to": [msg.to],
+            "to": [to],
             "subject": msg.subject,
             "html": msg.html,
             "reply_to": settings.EMAIL_REPLY_TO,
@@ -78,7 +88,7 @@ class ResendProvider:
             "email_send",
             provider="resend",
             status="sent",
-            to=msg.to,
+            to=to,
             message_id=message_id,
         )
         return SendResult(status="sent", provider_message_id=message_id)
