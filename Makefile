@@ -1,4 +1,4 @@
-.PHONY: api web test lint seed smoke format demo
+.PHONY: api web test lint seed smoke format demo eval
 
 api:
 	cd apps/api && uv run uvicorn src.main:app --reload --port 8000
@@ -24,3 +24,6 @@ smoke:
 
 demo:
 	cd apps/api && uv run python -m src.scripts.run_all_personas
+
+eval:
+	cd apps/api && uv run python -m src.scripts.run_eval

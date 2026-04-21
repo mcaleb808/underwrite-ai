@@ -1,0 +1,56 @@
+# Golden cases for the underwriting graph.
+#
+# Each entry references a seed applicant JSON and asserts the expected
+# decision shape. Verdicts are intentionally flexible (verdict_in: list)
+# where domain rules allow more than one defensible outcome — e.g. a
+# very-high-risk case may legitimately be declined OR referred.
+#
+# Loading bounds are inclusive ranges in percentage points.
+# must_not_cite_rules guards against rules the critic should never
+# legitimately invoke (e.g. district as adverse).
+
+cases:
+  - name: alice-kigali-clean
+    label: Alice — clean profile, age 29
+    applicant_file: alice-kigali-clean.json
+    expected:
+      verdict_in: [accept]
+      band: low
+      loading_max: 5
+      must_cite_rules: [UW-130]
+      must_not_flag_bias: true
+
+  - name: jean-nyanza-controlled-htn
+    label: Jean — controlled hypertension, age 44
+    applicant_file: jean-nyanza-controlled-htn.json
+    expected:
+      verdict_in: [accept_with_conditions, accept]
+      band_in: [low, moderate]
+      loading_max: 40
+      must_not_flag_bias: true
+
+  - name: marie-rubavu-diabetic
+    label: Marie — diabetes + hypertension, age 52
+    applicant_file: marie-rubavu-diabetic.json
+    expected:
+      verdict_in: [accept_with_conditions, refer]
+      band_in: [high, very_high]
+      must_not_flag_bias: true
+
+  - name: claudine-nyagatare-pregnant
+    label: Claudine — high-risk pregnancy, age 34
+    applicant_file: claudine-nyagatare-pregnant.json
+    expected:
+      verdict_in: [refer, accept_with_conditions]
+      band_in: [moderate, high]
+      # Pregnancy never produces adverse loading on its own (UW-100).
+      loading_max: 30
+      must_not_flag_bias: true
+
+  - name: emmanuel-gakenke-cardiac
+    label: Emmanuel — cardiac history, age 66
+    applicant_file: emmanuel-gakenke-cardiac.json
+    expected:
+      verdict_in: [decline, refer]
+      band: very_high
+      must_not_flag_bias: true

@@ -24,6 +24,7 @@ dependencies = [
     "email-validator>=2.0",
     "slowapi>=0.1.9",
     "python-multipart>=0.0.18",
+    "pyyaml>=6.0",
 ]
 
 [dependency-groups]
