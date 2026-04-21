@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, Request, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
@@ -39,7 +39,7 @@ from src.schemas.events import OrchestratorClosed, OrchestratorError
 from src.services import event_bus
 from src.services.email import EmailMessage, EmailProvider, get_email_provider
 from src.services.email.render import render as render_email
-from src.services.orchestrator import run_task
+from src.services.orchestrator import request_cancel, run_task
 from src.services.reference import new_reference
 
 router = APIRouter(prefix="/api/v1/applications", tags=["applications"])
@@ -320,6 +320,83 @@ async def reevaluate(
 
     background.add_task(run_task, task_id, profile, paths)
     return ReevalResponse(task_id=task_id, status=task.status.value)
+
+
+_TERMINAL_STATUSES = {
+    TaskStatus.awaiting_review,
+    TaskStatus.approved,
+    TaskStatus.modified,
+    TaskStatus.sent,
+    TaskStatus.failed,
+    TaskStatus.cancelled,
+}
+
+
+async def _delete_task_rows(session: AsyncSession, task_ids: list[str]) -> None:
+    """Wipe events, decisions, task rows, and orphaned applications for the ids."""
+    if not task_ids:
+        return
+    task_rows = (
+        (await session.execute(select(Task).where(Task.task_id.in_(task_ids)))).scalars().all()
+    )
+    app_ids = {t.application_id for t in task_rows}
+    await session.execute(delete(Event).where(Event.task_id.in_(task_ids)))
+    await session.execute(delete(DecisionRecord).where(DecisionRecord.task_id.in_(task_ids)))
+    await session.execute(delete(Task).where(Task.task_id.in_(task_ids)))
+    for app_id in app_ids:
+        remaining = (
+            await session.execute(select(func.count(Task.id)).where(Task.application_id == app_id))
+        ).scalar_one()
+        if remaining == 0:
+            await session.execute(delete(Application).where(Application.id == app_id))
+
+
+@router.post("/{task_id}/cancel", status_code=202)
+async def cancel_task(
+    task_id: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict[str, str]:
+    """Signal a running task to stop after its current node finishes."""
+    task = (await session.execute(select(Task).where(Task.task_id == task_id))).scalar_one_or_none()
+    if task is None:
+        raise TaskNotFoundError(task_id)
+    if task.status not in {TaskStatus.queued, TaskStatus.running, TaskStatus.reeval}:
+        raise InvalidStateTransitionError(f"cannot cancel from status {task.status.value}")
+    request_cancel(task_id)
+    return {"status": "cancelling"}
+
+
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(
+    task_id: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Hard-delete a task and its events / decision / orphaned application."""
+    task = (await session.execute(select(Task).where(Task.task_id == task_id))).scalar_one_or_none()
+    if task is None:
+        raise TaskNotFoundError(task_id)
+    if task.status in {TaskStatus.running, TaskStatus.queued, TaskStatus.reeval}:
+        raise InvalidStateTransitionError(
+            "cannot delete an in-flight task — cancel it first, then delete"
+        )
+    await _delete_task_rows(session, [task_id])
+    await session.commit()
+    return Response(status_code=204)
+
+
+@router.delete("", status_code=204)
+async def clear_terminal_tasks(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """Hard-delete every task in a terminal state. In-flight tasks are skipped."""
+    rows = (
+        (await session.execute(select(Task).where(Task.status.in_(_TERMINAL_STATUSES))))
+        .scalars()
+        .all()
+    )
+    await _delete_task_rows(session, [t.task_id for t in rows])
+    await session.commit()
+    return Response(status_code=204)
 
 
 @router.get("/{task_id}/files", response_model=list[str])
