@@ -150,4 +150,19 @@ export async function reevaluate(
   return res.json();
 }
 
+export async function cancelApplication(taskId: string): Promise<void> {
+  const res = await fetch(`${API}/api/v1/applications/${taskId}/cancel`, { method: "POST" });
+  if (!res.ok) throw new Error(`failed to cancel: ${res.status} ${await res.text()}`);
+}
+
+export async function deleteApplication(taskId: string): Promise<void> {
+  const res = await fetch(`${API}/api/v1/applications/${taskId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`failed to delete: ${res.status} ${await res.text()}`);
+}
+
+export async function clearTerminalApplications(): Promise<void> {
+  const res = await fetch(`${API}/api/v1/applications`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`failed to clear: ${res.status} ${await res.text()}`);
+}
+
 export type { DecisionPayload };
