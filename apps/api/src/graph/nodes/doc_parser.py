@@ -9,7 +9,10 @@ from langchain_openai import ChatOpenAI
 from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.medical import ParsedMedicalRecord
+from src.services.log import bind, get_logger, llm_observability
 from src.tools.pdf_extract import extract_text
+
+log = get_logger(__name__)
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
@@ -35,6 +38,7 @@ def _llm() -> ChatOpenAI:
         api_key=settings.OPENROUTER_API_KEY,
         base_url=settings.OPENROUTER_BASE_URL,
         temperature=0,
+        callbacks=[llm_observability],
     )
 
 
@@ -59,9 +63,12 @@ def _parse_one(pdf_path: Path) -> ParsedMedicalRecord:
 
 
 def run(state: UnderwritingState) -> dict[str, Any]:
+    bind(node="doc_parser", task_id=state.get("task_id"))
     paths = state.get("medical_doc_paths") or []
     if not paths and "applicant" in state:
         paths = list(state["applicant"].medical_docs)
+
+    log.info("node_start", doc_count=len(paths))
 
     parsed: list[ParsedMedicalRecord] = []
     errors: list[str] = []
@@ -71,6 +78,9 @@ def run(state: UnderwritingState) -> dict[str, Any]:
             parsed.append(_parse_one(resolved))
         except Exception as exc:
             errors.append(f"doc_parser failed for {raw}: {exc!r}")
+            log.warning("doc_parse_failed", path=raw, error=repr(exc))
+
+    log.info("node_end", parsed=len(parsed), errors=len(errors))
 
     update: dict[str, Any] = {
         "parsed_medical": parsed,

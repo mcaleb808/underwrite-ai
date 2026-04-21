@@ -11,6 +11,9 @@ from src.config import settings
 from src.graph.state import UnderwritingState
 from src.rag.retriever import retrieve
 from src.schemas.decision import GuidelineChunk
+from src.services.log import bind, get_logger
+
+log = get_logger(__name__)
 
 # Always present in the prompt — every decision is governed by these.
 _PINNED_RULES = ("UW-070", "UW-090", "UW-130", "UW-140")
@@ -36,6 +39,7 @@ def _retrieve_rule(rule_id: str) -> GuidelineChunk | None:
 
 
 def run(state: UnderwritingState) -> dict[str, Any]:
+    bind(node="guidelines_rag", task_id=state.get("task_id"))
     query = _build_query(state)
     semantic = retrieve(query, settings.CHROMA_DIR, k=6)
 
@@ -50,6 +54,12 @@ def run(state: UnderwritingState) -> dict[str, Any]:
             seen.add(rule_id)
 
     chunks = semantic + pinned
+    log.info(
+        "node_end",
+        semantic_count=len(semantic),
+        pinned_count=len(pinned),
+        rule_ids=[c.rule_id for c in chunks],
+    )
     return {
         "retrieved_guidelines": chunks,
         "events": [

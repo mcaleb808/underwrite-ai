@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import logging
+import time
 from typing import Any
 
 from sqlalchemy import select
@@ -14,8 +14,9 @@ from src.db.session import async_session
 from src.graph.builder import build_graph
 from src.schemas.applicant import ApplicantProfile
 from src.services import event_bus
+from src.services.log import bind, clear, get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 async def _persist_event(session: AsyncSession, task_id: str, event: dict[str, Any]) -> None:
@@ -49,6 +50,10 @@ async def _set_status(session: AsyncSession, task_id: str, status: TaskStatus) -
 
 async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[str]) -> None:
     """Stream the graph for a task: persist + publish each node event live."""
+    bind(task_id=task_id)
+    started = time.perf_counter()
+    log.info("graph_start", doc_count=len(doc_paths))
+
     graph = build_graph()
     config = {"configurable": {"thread_id": task_id}}
 
@@ -78,7 +83,7 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
         snapshot = await graph.aget_state(config)
         final: dict[str, Any] = snapshot.values
     except Exception as exc:
-        log.exception("graph failed for task %s", task_id)
+        log.exception("graph_failed", error=repr(exc))
         async with async_session() as session:
             await _persist_event(
                 session, task_id, {"node": "orchestrator", "type": "error", "error": repr(exc)}
@@ -89,6 +94,7 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
             task_id, {"node": "orchestrator", "type": "error", "error": repr(exc)}
         )
         await event_bus.close(task_id)
+        clear()
         return
 
     async with async_session() as session:
@@ -106,6 +112,13 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
         task.status = TaskStatus.awaiting_review if decision is not None else TaskStatus.failed
         await session.commit()
 
+    log.info(
+        "graph_end",
+        verdict=getattr(decision, "verdict", None),
+        risk_score=final.get("risk_score"),
+        duration_ms=round((time.perf_counter() - started) * 1000),
+    )
+
     await event_bus.publish(
         task_id,
         {
@@ -116,6 +129,7 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
         },
     )
     await event_bus.close(task_id)
+    clear()
 
 
 __all__ = ["run_task"]

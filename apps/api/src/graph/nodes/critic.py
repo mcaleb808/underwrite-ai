@@ -9,6 +9,9 @@ from src.adapters.rw import rw_adapter
 from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.decision import Critique
+from src.services.log import bind, get_logger, llm_observability
+
+log = get_logger(__name__)
 
 SYSTEM = (
     "You are an adversarial underwriting reviewer. Audit the DecisionDraft against the"
@@ -29,6 +32,7 @@ def _llm() -> ChatOpenAI:
         api_key=settings.OPENROUTER_API_KEY,
         base_url=settings.OPENROUTER_BASE_URL,
         temperature=0,
+        callbacks=[llm_observability],
     )
 
 
@@ -53,13 +57,17 @@ def _format_draft(state: UnderwritingState) -> str:
 
 
 def run(state: UnderwritingState) -> dict[str, Any]:
+    bind(node="critic", task_id=state.get("task_id"))
     draft = state.get("decision")
     if draft is None:
+        log.info("node_skipped", reason="no draft")
         return {
             "needs_revision": False,
             "revision_count": state.get("revision_count", 0) + 1,
             "events": [{"node": "critic", "type": "skipped", "reason": "no draft"}],
         }
+
+    log.info("node_start")
 
     structured = _llm().with_structured_output(Critique)
     llm_critique = structured.invoke(
@@ -76,6 +84,14 @@ def run(state: UnderwritingState) -> dict[str, Any]:
         suggestions=list(llm_critique.suggestions),
         needs_revision=needs_revision,
         bias_flag=bias_flag,
+    )
+
+    log.info(
+        "node_end",
+        issue_count=len(issues),
+        regex_issue_count=len(regex_issues),
+        bias_flag=bias_flag,
+        needs_revision=needs_revision,
     )
 
     return {

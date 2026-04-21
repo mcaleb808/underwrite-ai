@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     EMAIL_REPLY_TO: str = "underwriting@underwriteai.rw"
     INSURER_NAME: str = "UnderwriteAI Demo Insurer"
     RESEND_API_KEY: str = ""
+    SENDGRID_API_KEY: str = ""
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
