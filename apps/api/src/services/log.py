@@ -1,18 +1,4 @@
-"""Structured JSON logging via structlog.
-
-All application logs are written to stdout as one JSON line per event.
-Cloud Run (and any other container runtime) auto-forwards stdout to its
-logging backend, where logs are queryable by ``task_id``, ``node``, and
-any other context bound via :func:`bind`.
-
-The module is auto-configured on first import; ``configure()`` is
-idempotent so re-imports and test runs don't double-register processors.
-
-A :class:`LLMObservability` callback is exported as ``llm_observability``
-and should be attached to every ``ChatOpenAI`` (or other LangChain LLM)
-constructed inside a node — it emits one ``llm_call`` event per
-invocation with model, latency, and token usage.
-"""
+"""Structured JSON logging via structlog. Auto-configured on import."""
 
 from __future__ import annotations
 
@@ -32,7 +18,6 @@ _configured = False
 
 
 def configure() -> None:
-    """Configure structlog. Idempotent — safe to call multiple times."""
     global _configured
     if _configured:
         return
@@ -51,46 +36,33 @@ def configure() -> None:
         wrapper_class=structlog.make_filtering_bound_logger(level),
         cache_logger_on_first_use=True,
     )
-
-    # Route the stdlib logging tree (uvicorn, sqlalchemy, etc.) through the
-    # same JSON renderer so every line in stdout is parseable by Cloud Logging.
+    # Route stdlib logs (uvicorn, sqlalchemy) through the same renderer.
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level, force=True)
-
     _configured = True
 
 
 def get_logger(name: str | None = None) -> Any:
-    """Return a structlog logger bound to ``name`` (typically ``__name__``)."""
     return structlog.get_logger(name)
 
 
 def bind(**kwargs: Any) -> None:
-    """Bind key/value pairs to the current async context."""
     structlog.contextvars.bind_contextvars(**kwargs)
 
 
 def unbind(*keys: str) -> None:
-    """Remove keys from the current async context."""
     structlog.contextvars.unbind_contextvars(*keys)
 
 
 def clear() -> None:
-    """Drop all bound context vars."""
     structlog.contextvars.clear_contextvars()
 
 
 def bind_node(state: Any, name: str) -> None:
-    """Bind ``node`` and ``task_id`` for a graph node's run() function."""
     bind(node=name, task_id=state.get("task_id"))
 
 
 class LLMObservability(BaseCallbackHandler):
-    """LangChain callback that emits structlog events for each LLM call.
-
-    Records latency and token usage. Reads ``task_id`` and ``node`` from the
-    structlog context (bound by the orchestrator and node ``run`` functions),
-    so the emitted event is automatically correlated with its caller.
-    """
+    """LangChain callback emitting one llm_call event per invocation."""
 
     def __init__(self) -> None:
         self._start: dict[str, float] = {}
@@ -136,12 +108,7 @@ class LLMObservability(BaseCallbackHandler):
         self._log.warning("llm_call_error", latency_ms=latency_ms, error=repr(error))
 
 
-# Singleton callback shared across every LLM constructed in the app.
 llm_observability = LLMObservability()
-
-
-# Auto-configure on import so any module that imports get_logger gets
-# structured output without further setup.
 configure()
 
 
