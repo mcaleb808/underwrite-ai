@@ -1,0 +1,5 @@
+project_id   = "your-gcp-project-id"
+region       = "us-central1"
+env_name     = "demo"
+github_owner = "mcaleb808"
+github_repo  = "underwrite-ai"
