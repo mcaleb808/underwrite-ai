@@ -9,6 +9,7 @@ from src.adapters.rw import rw_adapter
 from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.decision import Critique
+from src.schemas.events import CriticError, CriticReviewed, CriticSkipped
 from src.services.log import bind_node, get_logger, llm_observability
 
 log = get_logger(__name__)
@@ -65,7 +66,7 @@ def run(state: UnderwritingState) -> dict[str, Any]:
         return {
             "needs_revision": False,
             "revision_count": state.get("revision_count", 0) + 1,
-            "events": [{"node": "critic", "type": "skipped", "reason": "no draft"}],
+            "events": [CriticSkipped(reason="no draft")],
         }
 
     structured = (
@@ -82,7 +83,7 @@ def run(state: UnderwritingState) -> dict[str, Any]:
         return {
             "needs_revision": False,
             "revision_count": state.get("revision_count", 0) + 1,
-            "events": [{"node": "critic", "type": "error", "error": repr(exc)}],
+            "events": [CriticError(error=repr(exc))],
         }
 
     regex_issues = rw_adapter.fairness_checks(draft, state["applicant"])
@@ -111,13 +112,11 @@ def run(state: UnderwritingState) -> dict[str, Any]:
         "needs_revision": needs_revision,
         "revision_count": state.get("revision_count", 0) + 1,
         "events": [
-            {
-                "node": "critic",
-                "type": "reviewed",
-                "issue_count": len(issues),
-                "bias_flag": bias_flag,
-                "needs_revision": needs_revision,
-                "regex_issue_count": len(regex_issues),
-            }
+            CriticReviewed(
+                issue_count=len(issues),
+                bias_flag=bias_flag,
+                needs_revision=needs_revision,
+                regex_issue_count=len(regex_issues),
+            )
         ],
     }

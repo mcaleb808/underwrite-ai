@@ -11,6 +11,7 @@ from src.config import settings
 from src.graph.state import UnderwritingState
 from src.rag.retriever import retrieve
 from src.schemas.decision import GuidelineChunk
+from src.schemas.events import GuidelinesRetrieved
 from src.services.log import bind_node, get_logger
 
 log = get_logger(__name__)
@@ -64,11 +65,9 @@ def run(state: UnderwritingState) -> dict[str, Any]:
     return {
         "retrieved_guidelines": chunks,
         "events": [
-            {
-                "node": "guidelines_rag",
-                "type": "retrieved",
-                "chunk_count": len(chunks),
-                "rule_ids": [c.rule_id for c in chunks],
-            }
+            GuidelinesRetrieved(
+                chunk_count=len(chunks),
+                rule_ids=[c.rule_id for c in chunks],
+            )
         ],
     }

@@ -6,6 +6,7 @@ import json
 import time
 from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,19 +14,32 @@ from src.db.models import DecisionRecord, Event, Task, TaskStatus
 from src.db.session import async_session
 from src.graph.builder import build_graph
 from src.schemas.applicant import ApplicantProfile
+from src.schemas.events import (
+    OrchestratorError,
+    OrchestratorFinalized,
+    OrchestratorStarted,
+    OrchestratorUsage,
+)
 from src.services import event_bus
 from src.services.log import bind, get_logger, llm_observability, unbind
 
 log = get_logger(__name__)
 
 
-async def _persist_event(session: AsyncSession, task_id: str, event: dict[str, Any]) -> None:
+def _to_dict(event: BaseModel | dict[str, Any]) -> dict[str, Any]:
+    return event.model_dump() if isinstance(event, BaseModel) else event
+
+
+async def _persist_event(
+    session: AsyncSession, task_id: str, event: BaseModel | dict[str, Any]
+) -> None:
+    payload = _to_dict(event)
     session.add(
         Event(
             task_id=task_id,
-            node=str(event.get("node", "unknown")),
-            event_type=str(event.get("type", "unknown")),
-            payload=json.dumps(event, default=str),
+            node=str(payload.get("node", "unknown")),
+            event_type=str(payload.get("type", "unknown")),
+            payload=json.dumps(payload, default=str),
         )
     )
 
@@ -62,7 +76,7 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
         async with async_session() as session:
             await _set_status(session, task_id, TaskStatus.running)
             await session.commit()
-        await event_bus.publish(task_id, {"node": "orchestrator", "type": "started"})
+        await event_bus.publish(task_id, _to_dict(OrchestratorStarted()))
 
         try:
             async for chunk in graph.astream(
@@ -79,28 +93,28 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
                     for _, update in chunk.items():
                         for event in update.get("events") or []:
                             await _persist_event(session, task_id, event)
-                            await event_bus.publish(task_id, event)
+                            await event_bus.publish(task_id, _to_dict(event))
                     await session.commit()
-                usage_event = {
-                    "node": "orchestrator",
-                    "type": "usage",
-                    **llm_observability.get_usage(task_id),
-                }
-                await event_bus.publish(task_id, usage_event)
+                usage = llm_observability.get_usage(task_id)
+                usage_event = OrchestratorUsage(
+                    prompt_tokens=int(usage["prompt_tokens"]),
+                    completion_tokens=int(usage["completion_tokens"]),
+                    total_tokens=int(usage["total_tokens"]),
+                    cost_usd=float(usage["cost_usd"]),
+                    calls=int(usage["calls"]),
+                )
+                await event_bus.publish(task_id, _to_dict(usage_event))
 
             snapshot = await graph.aget_state(config)
             final: dict[str, Any] = snapshot.values
         except Exception as exc:
             log.exception("graph_end", status="failed", error=repr(exc))
+            err_event = OrchestratorError(error=repr(exc))
             async with async_session() as session:
-                await _persist_event(
-                    session, task_id, {"node": "orchestrator", "type": "error", "error": repr(exc)}
-                )
+                await _persist_event(session, task_id, err_event)
                 await _set_status(session, task_id, TaskStatus.failed)
                 await session.commit()
-            await event_bus.publish(
-                task_id, {"node": "orchestrator", "type": "error", "error": repr(exc)}
-            )
+            await event_bus.publish(task_id, _to_dict(err_event))
             await event_bus.close(task_id)
             return
 
@@ -128,12 +142,12 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
 
         await event_bus.publish(
             task_id,
-            {
-                "node": "orchestrator",
-                "type": "finalized",
-                "verdict": getattr(decision, "verdict", None),
-                "risk_score": final.get("risk_score"),
-            },
+            _to_dict(
+                OrchestratorFinalized(
+                    verdict=getattr(decision, "verdict", None),
+                    risk_score=final.get("risk_score"),
+                )
+            ),
         )
         await event_bus.close(task_id)
     finally:

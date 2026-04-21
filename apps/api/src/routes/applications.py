@@ -35,6 +35,7 @@ from src.schemas.api import (
 )
 from src.schemas.applicant import ApplicantProfile
 from src.schemas.decision import DecisionDraft, RiskFactor
+from src.schemas.events import OrchestratorClosed, OrchestratorError
 from src.services import event_bus
 from src.services.email import EmailMessage, EmailProvider, get_email_provider
 from src.services.email.render import render as render_email
@@ -361,7 +362,7 @@ async def stream_events(
                 await session.execute(select(Task).where(Task.task_id == task_id))
             ).scalar_one_or_none()
             if existing_task is None:
-                yield _sse({"node": "orchestrator", "type": "error", "error": "task not found"})
+                yield _sse(OrchestratorError(error="task not found").model_dump())
                 return
 
             history = (
@@ -389,7 +390,7 @@ async def stream_events(
                 TaskStatus.sent,
                 TaskStatus.failed,
             }:
-                yield _sse({"node": "orchestrator", "type": "closed"})
+                yield _sse(OrchestratorClosed().model_dump())
                 return
 
         async for event in event_bus.stream(task_id):

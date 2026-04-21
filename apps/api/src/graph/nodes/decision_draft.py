@@ -9,6 +9,7 @@ from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.applicant import ApplicantProfile
 from src.schemas.decision import DecisionDraft, GuidelineChunk, RiskFactor
+from src.schemas.events import DecisionDrafted, DecisionDraftError
 from src.services.log import bind_node, get_logger, llm_observability
 
 log = get_logger(__name__)
@@ -94,14 +95,7 @@ def run(state: UnderwritingState) -> dict[str, Any]:
     except Exception as exc:
         log.error("node_end", status="failed", error=repr(exc))
         return {
-            "events": [
-                {
-                    "node": "decision_draft",
-                    "type": "error",
-                    "error": repr(exc),
-                    "is_revision": is_revision,
-                }
-            ],
+            "events": [DecisionDraftError(error=repr(exc), is_revision=is_revision)],
         }
 
     log.info(
@@ -116,13 +110,11 @@ def run(state: UnderwritingState) -> dict[str, Any]:
     return {
         "decision": draft,
         "events": [
-            {
-                "node": "decision_draft",
-                "type": "drafted",
-                "verdict": draft.verdict,
-                "premium_loading_pct": draft.premium_loading_pct,
-                "citations": draft.citations,
-                "is_revision": is_revision,
-            }
+            DecisionDrafted(
+                verdict=draft.verdict,
+                premium_loading_pct=draft.premium_loading_pct,
+                citations=list(draft.citations),
+                is_revision=is_revision,
+            )
         ],
     }
