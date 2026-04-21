@@ -9,7 +9,7 @@ from src.adapters.rw import rw_adapter
 from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.decision import Critique
-from src.services.log import bind, get_logger, llm_observability
+from src.services.log import bind_node, get_logger, llm_observability
 
 log = get_logger(__name__)
 
@@ -57,17 +57,15 @@ def _format_draft(state: UnderwritingState) -> str:
 
 
 def run(state: UnderwritingState) -> dict[str, Any]:
-    bind(node="critic", task_id=state.get("task_id"))
+    bind_node(state, "critic")
     draft = state.get("decision")
     if draft is None:
-        log.info("node_skipped", reason="no draft")
+        log.info("node_end", status="skipped", reason="no draft")
         return {
             "needs_revision": False,
             "revision_count": state.get("revision_count", 0) + 1,
             "events": [{"node": "critic", "type": "skipped", "reason": "no draft"}],
         }
-
-    log.info("node_start")
 
     structured = _llm().with_structured_output(Critique)
     llm_critique = structured.invoke(
@@ -88,6 +86,7 @@ def run(state: UnderwritingState) -> dict[str, Any]:
 
     log.info(
         "node_end",
+        status="done",
         issue_count=len(issues),
         regex_issue_count=len(regex_issues),
         bias_flag=bias_flag,

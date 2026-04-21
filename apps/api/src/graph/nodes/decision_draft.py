@@ -9,7 +9,7 @@ from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.applicant import ApplicantProfile
 from src.schemas.decision import DecisionDraft, GuidelineChunk, RiskFactor
-from src.services.log import bind, get_logger, llm_observability
+from src.services.log import bind_node, get_logger, llm_observability
 
 log = get_logger(__name__)
 
@@ -58,7 +58,7 @@ def _format_applicant(p: ApplicantProfile) -> str:
 
 
 def run(state: UnderwritingState) -> dict[str, Any]:
-    bind(node="decision_draft", task_id=state.get("task_id"))
+    bind_node(state, "decision_draft")
     profile = state["applicant"]
     factors = state.get("risk_factors") or []
     chunks = state.get("retrieved_guidelines") or []
@@ -66,7 +66,6 @@ def run(state: UnderwritingState) -> dict[str, Any]:
     band = state.get("risk_band", "low")
     critique = state.get("critique")
     is_revision = critique is not None
-    log.info("node_start", risk_score=score, risk_band=band, is_revision=is_revision)
 
     user_parts = [
         f"## Applicant\n{_format_applicant(profile)}",
@@ -89,9 +88,11 @@ def run(state: UnderwritingState) -> dict[str, Any]:
 
     log.info(
         "node_end",
+        status="done",
         verdict=draft.verdict,
         premium_loading_pct=draft.premium_loading_pct,
         citation_count=len(draft.citations),
+        is_revision=is_revision,
     )
 
     return {

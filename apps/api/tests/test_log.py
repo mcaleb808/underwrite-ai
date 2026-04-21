@@ -50,6 +50,12 @@ def test_bind_unbind_roundtrip() -> None:
     assert structlog.contextvars.get_contextvars() == {}
 
 
+def test_bind_node_pulls_task_id_from_state() -> None:
+    logmod.bind_node({"task_id": "t-9", "other": "ignored"}, "doc_parser")
+    ctx = structlog.contextvars.get_contextvars()
+    assert ctx == {"task_id": "t-9", "node": "doc_parser"}
+
+
 def test_get_logger_emits_json_with_context(capsys: pytest.CaptureFixture[str]) -> None:
     logmod.bind(task_id="t-abc")
     logger = logmod.get_logger("structlog_smoke")

@@ -79,6 +79,11 @@ def clear() -> None:
     structlog.contextvars.clear_contextvars()
 
 
+def bind_node(state: Any, name: str) -> None:
+    """Bind ``node`` and ``task_id`` for a graph node's run() function."""
+    bind(node=name, task_id=state.get("task_id"))
+
+
 class LLMObservability(BaseCallbackHandler):
     """LangChain callback that emits structlog events for each LLM call.
 
@@ -115,13 +120,13 @@ class LLMObservability(BaseCallbackHandler):
         start = self._start.pop(str(run_id), None)
         latency_ms = round((time.perf_counter() - start) * 1000) if start else None
         output = response.llm_output or {}
-        usage = output.get("token_usage") or output.get("usage") or {}
+        usage = output.get("token_usage") or {}
         self._log.info(
             "llm_call",
-            model=output.get("model_name") or output.get("model"),
+            model=output.get("model_name"),
             latency_ms=latency_ms,
-            prompt_tokens=usage.get("prompt_tokens") or usage.get("input_tokens"),
-            completion_tokens=usage.get("completion_tokens") or usage.get("output_tokens"),
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
             total_tokens=usage.get("total_tokens"),
         )
 
@@ -143,6 +148,7 @@ configure()
 __all__ = [
     "LLMObservability",
     "bind",
+    "bind_node",
     "clear",
     "configure",
     "get_logger",

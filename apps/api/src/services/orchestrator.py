@@ -14,7 +14,7 @@ from src.db.session import async_session
 from src.graph.builder import build_graph
 from src.schemas.applicant import ApplicantProfile
 from src.services import event_bus
-from src.services.log import bind, clear, get_logger
+from src.services.log import bind, get_logger, unbind
 
 log = get_logger(__name__)
 
@@ -57,79 +57,81 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
     graph = build_graph()
     config = {"configurable": {"thread_id": task_id}}
 
-    async with async_session() as session:
-        await _set_status(session, task_id, TaskStatus.running)
-        await session.commit()
-    await event_bus.publish(task_id, {"node": "orchestrator", "type": "started"})
-
     try:
-        async for chunk in graph.astream(
-            {
-                "task_id": task_id,
-                "applicant": applicant,
-                "medical_doc_paths": doc_paths,
-                "events": [],
-            },
-            config,
-            stream_mode="updates",
-        ):
-            async with async_session() as session:
-                for _, update in chunk.items():
-                    for event in update.get("events") or []:
-                        await _persist_event(session, task_id, event)
-                        await event_bus.publish(task_id, event)
-                await session.commit()
-
-        snapshot = await graph.aget_state(config)
-        final: dict[str, Any] = snapshot.values
-    except Exception as exc:
-        log.exception("graph_failed", error=repr(exc))
         async with async_session() as session:
-            await _persist_event(
-                session, task_id, {"node": "orchestrator", "type": "error", "error": repr(exc)}
-            )
-            await _set_status(session, task_id, TaskStatus.failed)
+            await _set_status(session, task_id, TaskStatus.running)
             await session.commit()
+        await event_bus.publish(task_id, {"node": "orchestrator", "type": "started"})
+
+        try:
+            async for chunk in graph.astream(
+                {
+                    "task_id": task_id,
+                    "applicant": applicant,
+                    "medical_doc_paths": doc_paths,
+                    "events": [],
+                },
+                config,
+                stream_mode="updates",
+            ):
+                async with async_session() as session:
+                    for _, update in chunk.items():
+                        for event in update.get("events") or []:
+                            await _persist_event(session, task_id, event)
+                            await event_bus.publish(task_id, event)
+                    await session.commit()
+
+            snapshot = await graph.aget_state(config)
+            final: dict[str, Any] = snapshot.values
+        except Exception as exc:
+            log.exception("graph_end", status="failed", error=repr(exc))
+            async with async_session() as session:
+                await _persist_event(
+                    session, task_id, {"node": "orchestrator", "type": "error", "error": repr(exc)}
+                )
+                await _set_status(session, task_id, TaskStatus.failed)
+                await session.commit()
+            await event_bus.publish(
+                task_id, {"node": "orchestrator", "type": "error", "error": repr(exc)}
+            )
+            await event_bus.close(task_id)
+            return
+
+        async with async_session() as session:
+            decision = final.get("decision")
+            if decision is not None:
+                await _persist_decision(session, task_id, decision)
+
+            task = (await session.execute(select(Task).where(Task.task_id == task_id))).scalar_one()
+            task.risk_score = final.get("risk_score")
+            task.risk_band = final.get("risk_band")
+            factors = final.get("risk_factors") or []
+            task.risk_factors_json = json.dumps(
+                [f.model_dump() if hasattr(f, "model_dump") else dict(f) for f in factors]
+            )
+            task.status = TaskStatus.awaiting_review if decision is not None else TaskStatus.failed
+            await session.commit()
+
+        log.info(
+            "graph_end",
+            status="done",
+            verdict=getattr(decision, "verdict", None),
+            risk_score=final.get("risk_score"),
+        )
+
         await event_bus.publish(
-            task_id, {"node": "orchestrator", "type": "error", "error": repr(exc)}
+            task_id,
+            {
+                "node": "orchestrator",
+                "type": "finalized",
+                "verdict": getattr(decision, "verdict", None),
+                "risk_score": final.get("risk_score"),
+            },
         )
         await event_bus.close(task_id)
-        clear()
-        return
-
-    async with async_session() as session:
-        decision = final.get("decision")
-        if decision is not None:
-            await _persist_decision(session, task_id, decision)
-
-        task = (await session.execute(select(Task).where(Task.task_id == task_id))).scalar_one()
-        task.risk_score = final.get("risk_score")
-        task.risk_band = final.get("risk_band")
-        factors = final.get("risk_factors") or []
-        task.risk_factors_json = json.dumps(
-            [f.model_dump() if hasattr(f, "model_dump") else dict(f) for f in factors]
-        )
-        task.status = TaskStatus.awaiting_review if decision is not None else TaskStatus.failed
-        await session.commit()
-
-    log.info(
-        "graph_end",
-        verdict=getattr(decision, "verdict", None),
-        risk_score=final.get("risk_score"),
-        duration_ms=round((time.perf_counter() - started) * 1000),
-    )
-
-    await event_bus.publish(
-        task_id,
-        {
-            "node": "orchestrator",
-            "type": "finalized",
-            "verdict": getattr(decision, "verdict", None),
-            "risk_score": final.get("risk_score"),
-        },
-    )
-    await event_bus.close(task_id)
-    clear()
+    finally:
+        log.info("graph_duration", duration_ms=round((time.perf_counter() - started) * 1000))
+        unbind("task_id")
 
 
 __all__ = ["run_task"]
