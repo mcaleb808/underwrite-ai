@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
+from email.utils import parseaddr
 from typing import Protocol
 
 from src.config import settings
@@ -45,66 +47,44 @@ class ConsoleProvider:
         return SendResult(status="sent", provider_message_id="console-noop")
 
 
-class ResendProvider:
-    name = "resend"
+class SendGridProvider:
+    name = "sendgrid"
 
     async def send(self, msg: EmailMessage) -> SendResult:
-        if not settings.RESEND_API_KEY:
-            return SendResult(status="failed", error="RESEND_API_KEY not set")
-        import resend
+        if not settings.SENDGRID_API_KEY:
+            return SendResult(status="failed", error="SENDGRID_API_KEY not set")
 
-        resend.api_key = settings.RESEND_API_KEY
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Email, Mail, ReplyTo
+
+        name, addr = parseaddr(settings.EMAIL_FROM)
+        mail = Mail(
+            from_email=Email(addr, name=name) if name else Email(addr),
+            to_emails=msg.to,
+            subject=msg.subject,
+            html_content=msg.html,
+            plain_text_content=msg.text,
+        )
+        if settings.EMAIL_REPLY_TO:
+            mail.reply_to = ReplyTo(settings.EMAIL_REPLY_TO)
+
+        client = SendGridAPIClient(settings.SENDGRID_API_KEY)
         try:
-            params: dict = {
-                "from": settings.EMAIL_FROM,
-                "to": [msg.to],
-                "subject": msg.subject,
-                "html": msg.html,
-                "reply_to": settings.EMAIL_REPLY_TO,
-            }
-            if msg.text:
-                params["text"] = msg.text
-            response = resend.Emails.send(params)
-            return SendResult(status="sent", provider_message_id=str(response.get("id")))
+            response = await asyncio.to_thread(client.send, mail)
         except Exception as exc:
             return SendResult(status="failed", error=repr(exc))
 
-
-class SmtpProvider:
-    name = "smtp"
-
-    async def send(self, msg: EmailMessage) -> SendResult:
-        from email.message import EmailMessage as MIMEMessage
-
-        import aiosmtplib
-
-        mime = MIMEMessage()
-        mime["From"] = settings.EMAIL_FROM
-        mime["To"] = msg.to
-        mime["Subject"] = msg.subject
-        mime["Reply-To"] = settings.EMAIL_REPLY_TO
-        mime.set_content(msg.text or "")
-        mime.add_alternative(msg.html, subtype="html")
-        try:
-            await aiosmtplib.send(
-                mime,
-                hostname=settings.SMTP_HOST,
-                port=settings.SMTP_PORT,
-                username=settings.SMTP_USER,
-                password=settings.SMTP_PASS,
-                start_tls=True,
-            )
-            return SendResult(status="sent", provider_message_id=mime["Message-Id"])
-        except Exception as exc:
-            return SendResult(status="failed", error=repr(exc))
+        message_id = None
+        if response.headers is not None:
+            value = response.headers.get("X-Message-Id")
+            message_id = str(value) if value is not None else None
+        return SendResult(status="sent", provider_message_id=message_id)
 
 
 def get_email_provider() -> EmailProvider:
-    """FastAPI dependency: return the provider configured in settings."""
+    """Return the provider configured in settings."""
     match settings.EMAIL_PROVIDER:
-        case "resend":
-            return ResendProvider()
-        case "smtp":
-            return SmtpProvider()
+        case "sendgrid":
+            return SendGridProvider()
         case _:
             return ConsoleProvider()

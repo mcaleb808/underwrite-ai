@@ -10,6 +10,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
     # llm (all models via openrouter)
@@ -28,16 +29,11 @@ class Settings(BaseSettings):
     WEB_ORIGIN: str = "http://localhost:3000"
 
     # email
-    EMAIL_PROVIDER: Literal["resend", "smtp", "console"] = "console"
+    EMAIL_PROVIDER: Literal["sendgrid", "console"] = "console"
     EMAIL_FROM: str = "UnderwriteAI <underwriting@underwriteai.rw>"
     EMAIL_REPLY_TO: str = "underwriting@underwriteai.rw"
     INSURER_NAME: str = "UnderwriteAI Demo Insurer"
-    RESEND_API_KEY: str = ""
     SENDGRID_API_KEY: str = ""
-    SMTP_HOST: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASS: str = ""
 
     # observability
     LANGSMITH_API_KEY: str = ""
