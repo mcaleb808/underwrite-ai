@@ -39,6 +39,9 @@ WORKDIR /app
 COPY --from=builder --chown=app:app /opt/venv /opt/venv
 COPY --from=builder --chown=app:app /app/src ./src
 
+# Owned by app so a mounted volume (or Cloud Run /tmp) is writable for sqlite + chroma.
+RUN mkdir -p /data && chown app:app /data
+
 USER app
 EXPOSE 8080
 
