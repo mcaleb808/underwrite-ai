@@ -58,9 +58,10 @@ module "cloud_run" {
   project_id       = var.project_id
   region           = var.region
   service_name     = "underwrite-api-${local.name_suffix}"
-  image            = "${var.region}-docker.pkg.dev/${var.project_id}/${module.artifact_registry.repository_id}/api:${var.image_tag}"
+  image            = var.bootstrap_image
   runtime_sa_email = module.service_account.email
   secret_env       = module.secrets.env_bindings
+  web_origin       = var.web_origin
   labels           = local.labels
 
   depends_on = [module.artifact_registry, module.secrets]

@@ -18,7 +18,18 @@ variable "env_name" {
 variable "image_tag" {
   type        = string
   default     = "latest"
-  description = "Tag of the api image to deploy. CI overrides with the git sha."
+  description = "Initial image tag. After first apply, CI overrides the running image and terraform ignores the field."
+}
+
+variable "bootstrap_image" {
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+  description = "Placeholder image used to create the Cloud Run service before any real image exists in Artifact Registry. CI replaces it on the first push to main."
+}
+
+variable "web_origin" {
+  type        = string
+  description = "Origin allowed by the api's CORS middleware. Set to the Vercel URL once the frontend is deployed."
 }
 
 variable "github_owner" {

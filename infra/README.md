@@ -5,12 +5,18 @@ Terraform stack for the api on Google Cloud Run, fronted by Vercel.
 ## What this provisions
 
 - **Artifact Registry** — Docker repo for the api image, with a cleanup policy that keeps the last 3 tagged versions and deletes untagged images after 7 days.
-- **Cloud Run service** — `min=0` / `max=3`, 1 vCPU / 2 GB, scale-to-zero. Pulls `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `SENDGRID_API_KEY` from Secret Manager.
+- **Cloud Run service** — `min=0` / `max=1` (single instance for consistent per-instance sqlite state), 1 vCPU / 2 GB, scale-to-zero. Pulls `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `SENDGRID_API_KEY` from Secret Manager.
 - **Secret Manager** — three secrets, accessible only to the runtime service account.
 - **Runtime service account** — least-privilege: `secretAccessor` on each secret, `logging.logWriter` on the project. Nothing else.
-- **Workload Identity Federation** — lets a specific GitHub repo's workflow impersonate a deploy service account without a JSON key in the repo.
+- **Workload Identity Federation** — lets the `main` branch of a specific GitHub repo impersonate a deploy service account without a JSON key in the repo. Feature branches and forks cannot.
 
 The Vercel side is configured manually (one-time): connect the repo on the Vercel dashboard and set `NEXT_PUBLIC_API_URL` to the Cloud Run URL printed by `terraform output api_url`.
+
+## How the image lifecycle works
+
+1. The first `terraform apply` creates the Cloud Run service pointing at a public placeholder image (`us-docker.pkg.dev/cloudrun/container/hello`) so the service can be created before any real image exists in Artifact Registry.
+2. The first push to `main` runs the deploy workflow, which builds + pushes the api image and rolls a new revision via `gcloud run deploy --image=...:${sha}`.
+3. Cloud Run's `image` field has `lifecycle.ignore_changes` set, so subsequent `terraform apply` runs leave the running image alone — CI owns it.
 
 ## One-time bootstrap
 
@@ -31,7 +37,13 @@ gcloud storage buckets create gs://${STATE_BUCKET} \
 
 gcloud storage buckets update gs://${STATE_BUCKET} --versioning
 
-cp terraform.tfvars.example terraform.tfvars   # then edit project_id / github_owner / github_repo
+# Drop noncurrent state versions after 90 days so the bucket doesn't grow forever.
+cat > /tmp/lifecycle.json <<EOF
+{ "rule": [ { "action": { "type": "Delete" }, "condition": { "daysSinceNoncurrentTime": 90, "isLive": false } } ] }
+EOF
+gcloud storage buckets update gs://${STATE_BUCKET} --lifecycle-file=/tmp/lifecycle.json
+
+cp terraform.tfvars.example terraform.tfvars   # then edit project_id / github_owner / github_repo / web_origin
 echo "state_bucket = \"${STATE_BUCKET}\"" > .backend-config
 ```
 

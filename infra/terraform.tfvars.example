@@ -3,3 +3,7 @@ region       = "us-central1"
 env_name     = "demo"
 github_owner = "mcaleb808"
 github_repo  = "underwrite-ai"
+
+# Set this once you know the Vercel URL. Wildcards are not allowed
+# (the api uses allow_credentials=True, which browsers reject with *).
+web_origin = "https://underwrite-ai.vercel.app"

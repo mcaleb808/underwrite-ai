@@ -21,7 +21,9 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.ref"        = "assertion.ref"
   }
 
-  attribute_condition = "attribute.repository == \"${var.github_owner}/${var.github_repo}\""
+  # Repo + branch pin: only workflow runs on the main branch of this exact repo
+  # can mint a token for the deploy SA. Feature branches and forks cannot.
+  attribute_condition = "attribute.repository == \"${var.github_owner}/${var.github_repo}\" && attribute.ref == \"refs/heads/main\""
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"

@@ -11,7 +11,7 @@ resource "google_cloud_run_v2_service" "this" {
 
     scaling {
       min_instance_count = 0
-      max_instance_count = 3
+      max_instance_count = var.max_instances
     }
 
     containers {
@@ -64,6 +64,16 @@ resource "google_cloud_run_v2_service" "this" {
   traffic {
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
     percent = 100
+  }
+
+  # CI overrides the running image with --image=...:${sha}; terraform should not
+  # revert it on the next apply.
+  lifecycle {
+    ignore_changes = [
+      template[0].containers[0].image,
+      client,
+      client_version,
+    ]
   }
 }
 

@@ -10,8 +10,14 @@ variable "secret_env" {
 }
 
 variable "web_origin" {
-  type    = string
-  default = "*"
+  type        = string
+  description = "Origin allowed by the api's CORS middleware. Set to the Vercel URL."
+}
+
+variable "max_instances" {
+  type        = number
+  default     = 1
+  description = "Cloud Run max instance count. Defaults to 1 so per-instance sqlite stays consistent."
 }
 
 variable "labels" { type = map(string) }
