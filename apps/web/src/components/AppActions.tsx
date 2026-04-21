@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { useConfirm, useToast } from "@/components/ui/providers";
 import { cancelApplication, deleteApplication } from "@/lib/api";
 import type { ApplicationStatus } from "@/lib/types";
 
@@ -24,36 +25,49 @@ export function AppActions({
   onCancelRequested: () => void;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [working, setWorking] = useState<"stop" | "delete" | null>(null);
 
   const isInFlight = IN_FLIGHT_STATUSES.has(status.status);
   const isDeletable = DELETABLE_STATUSES.has(status.status);
 
   async function handleStop() {
-    if (!window.confirm("Stop this pipeline? The current step will finish first, then the run will be cancelled.")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Stop this pipeline?",
+      message:
+        "The current step will finish, then the run will be cancelled. Any in-flight LLM calls will complete.",
+      confirmLabel: "Stop",
+      tone: "destructive",
+    });
+    if (!ok) return;
     setWorking("stop");
     try {
       await cancelApplication(status.task_id);
       onCancelRequested();
+      toast.info("Stopping the pipeline — the current step will finish first.");
     } catch (err) {
-      window.alert(`Couldn't stop the pipeline: ${String(err)}`);
+      toast.error(`Couldn't stop the pipeline: ${String(err)}`);
     } finally {
       setWorking(null);
     }
   }
 
   async function handleDelete() {
-    if (!window.confirm("Remove this application? All its events and the decision will be permanently deleted.")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Remove this application?",
+      message: "All its events and the decision will be permanently deleted.",
+      confirmLabel: "Remove",
+      tone: "destructive",
+    });
+    if (!ok) return;
     setWorking("delete");
     try {
       await deleteApplication(status.task_id);
+      toast.success("Application removed.");
       router.push("/");
     } catch (err) {
-      window.alert(`Couldn't remove the application: ${String(err)}`);
+      toast.error(`Couldn't remove the application: ${String(err)}`);
       setWorking(null);
     }
   }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { useConfirm, useToast } from "@/components/ui/providers";
 import { clearTerminalApplications } from "@/lib/api";
 import type { ApplicationListItem } from "@/lib/types";
 
@@ -53,6 +54,8 @@ function matchesTab(tab: TabKey, status: string): boolean {
 
 export function RecentApplicationsList({ items }: { items: ApplicationListItem[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [tab, setTab] = useState<TabKey>("all");
   const [clearing, setClearing] = useState(false);
 
@@ -80,19 +83,21 @@ export function RecentApplicationsList({ items }: { items: ApplicationListItem[]
   const hasTerminal = counts.awaiting + counts.approved + counts.failed > 0;
 
   async function handleClear() {
-    if (
-      !window.confirm(
-        "Clear all finished applications? This permanently deletes their events and decisions. In-flight runs are kept.",
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Clear all finished applications?",
+      message:
+        "This permanently deletes their events and decisions. In-flight runs are kept.",
+      confirmLabel: "Clear",
+      tone: "destructive",
+    });
+    if (!ok) return;
     setClearing(true);
     try {
       await clearTerminalApplications();
+      toast.success("Finished applications cleared.");
       router.refresh();
     } catch (err) {
-      window.alert(`Couldn't clear: ${String(err)}`);
+      toast.error(`Couldn't clear: ${String(err)}`);
     } finally {
       setClearing(false);
     }
