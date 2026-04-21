@@ -38,6 +38,7 @@ def _llm() -> ChatOpenAI:
         api_key=settings.OPENROUTER_API_KEY,
         base_url=settings.OPENROUTER_BASE_URL,
         temperature=0,
+        timeout=60,
         callbacks=[llm_observability],
     )
 
@@ -47,7 +48,11 @@ def _parse_one(pdf_path: Path) -> ParsedMedicalRecord:
     if not text:
         return ParsedMedicalRecord(source_path=str(pdf_path))
 
-    structured = _llm().with_structured_output(ParsedMedicalRecord)
+    structured = (
+        _llm()
+        .with_structured_output(ParsedMedicalRecord)
+        .with_retry(stop_after_attempt=2, wait_exponential_jitter=True)
+    )
     result = structured.invoke(
         [
             SystemMessage(content=SYSTEM),

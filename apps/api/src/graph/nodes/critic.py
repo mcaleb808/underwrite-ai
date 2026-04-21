@@ -32,6 +32,7 @@ def _llm() -> ChatOpenAI:
         api_key=settings.OPENROUTER_API_KEY,
         base_url=settings.OPENROUTER_BASE_URL,
         temperature=0,
+        timeout=60,
         callbacks=[llm_observability],
     )
 
@@ -67,10 +68,22 @@ def run(state: UnderwritingState) -> dict[str, Any]:
             "events": [{"node": "critic", "type": "skipped", "reason": "no draft"}],
         }
 
-    structured = _llm().with_structured_output(Critique)
-    llm_critique = structured.invoke(
-        [SystemMessage(content=SYSTEM), HumanMessage(content=_format_draft(state))]
+    structured = (
+        _llm()
+        .with_structured_output(Critique)
+        .with_retry(stop_after_attempt=2, wait_exponential_jitter=True)
     )
+    try:
+        llm_critique = structured.invoke(
+            [SystemMessage(content=SYSTEM), HumanMessage(content=_format_draft(state))]
+        )
+    except Exception as exc:
+        log.error("node_end", status="failed", error=repr(exc))
+        return {
+            "needs_revision": False,
+            "revision_count": state.get("revision_count", 0) + 1,
+            "events": [{"node": "critic", "type": "error", "error": repr(exc)}],
+        }
 
     regex_issues = rw_adapter.fairness_checks(draft, state["applicant"])
     issues = list(llm_critique.issues) + regex_issues
