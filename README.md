@@ -109,7 +109,6 @@ underwrite-ai/
 ├── docs/
 │   └── architecture.md          # design + tradeoffs
 ├── .github/workflows/ci.yml     # api lint+test · web lint+typecheck
-├── CLAUDE.md
 ├── Makefile
 └── README.md
 ```
@@ -138,7 +137,6 @@ cd apps/api && uv run pytest -m slow         # slow suite (needs OPENAI_API_KEY)
 - [`docs/architecture.md`](docs/architecture.md) — state contract, agent
   responsibilities, RAG strategy, persistence model, decision lifecycle,
   fairness backstop, and the key tradeoffs.
-- [`CLAUDE.md`](CLAUDE.md) — quick orientation for AI coding tools.
 
 ## License
 

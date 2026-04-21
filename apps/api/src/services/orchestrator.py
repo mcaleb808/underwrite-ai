@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
@@ -24,6 +25,19 @@ from src.services import event_bus
 from src.services.log import bind, get_logger, llm_observability, unbind
 
 log = get_logger(__name__)
+
+# Per-task cancel signals. Set by request_cancel(); the graph loop checks
+# between chunks and unwinds gracefully when signalled.
+_cancel_events: dict[str, asyncio.Event] = {}
+
+
+def request_cancel(task_id: str) -> bool:
+    """Signal a running task to stop. Returns True if the task was known."""
+    event = _cancel_events.get(task_id)
+    if event is None:
+        return False
+    event.set()
+    return True
 
 
 def _to_dict(event: BaseModel | dict[str, Any]) -> dict[str, Any]:
@@ -71,6 +85,8 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
     graph = build_graph()
     config = {"configurable": {"thread_id": task_id}}
     llm_observability.reset_task(task_id)
+    cancel_event = asyncio.Event()
+    _cancel_events[task_id] = cancel_event
 
     try:
         async with async_session() as session:
@@ -79,6 +95,7 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
         await event_bus.publish(task_id, _to_dict(OrchestratorStarted()))
 
         try:
+            cancelled = False
             async for chunk in graph.astream(
                 {
                     "task_id": task_id,
@@ -104,6 +121,21 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
                     calls=int(usage["calls"]),
                 )
                 await event_bus.publish(task_id, _to_dict(usage_event))
+
+                if cancel_event.is_set():
+                    cancelled = True
+                    break
+
+            if cancelled:
+                log.warning("graph_cancelled")
+                cancel_evt = OrchestratorError(error="cancelled by user")
+                async with async_session() as session:
+                    await _persist_event(session, task_id, cancel_evt)
+                    await _set_status(session, task_id, TaskStatus.cancelled)
+                    await session.commit()
+                await event_bus.publish(task_id, _to_dict(cancel_evt))
+                await event_bus.close(task_id)
+                return
 
             snapshot = await graph.aget_state(config)
             final: dict[str, Any] = snapshot.values
@@ -157,7 +189,8 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
             **llm_observability.get_usage(task_id),
         )
         llm_observability.discard_task(task_id)
+        _cancel_events.pop(task_id, None)
         unbind("task_id")
 
 
-__all__ = ["run_task"]
+__all__ = ["request_cancel", "run_task"]

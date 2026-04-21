@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { AppActions } from "@/components/AppActions";
 import { DecisionCard } from "@/components/DecisionCard";
 import { FailureCard } from "@/components/FailureCard";
 import { MedicalDocs } from "@/components/MedicalDocs";
@@ -79,8 +80,14 @@ export function Live({ initial }: { initial: ApplicationStatus }) {
               : ""}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <UsagePill usage={usage} startedAt={startedAt} finished={finished} />
+          <AppActions
+            status={status}
+            onCancelRequested={() => {
+              getApplication(initial.task_id).then(setStatus).catch(() => {});
+            }}
+          />
           <Link
             href="/"
             className="text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400"

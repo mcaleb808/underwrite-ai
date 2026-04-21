@@ -18,6 +18,7 @@ class TaskStatus(enum.StrEnum):
     reeval = "reeval"
     sent = "sent"
     failed = "failed"
+    cancelled = "cancelled"
 
 
 class Application(Base):
