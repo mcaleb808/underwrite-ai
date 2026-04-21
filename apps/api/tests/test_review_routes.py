@@ -106,7 +106,8 @@ def test_approve_sends_email_and_marks_sent(
     msg = fake_email.sent[0]
     assert msg.to == "alice.uwase+demo@example.com"
     assert "UW-2026-AAA111" in msg.subject
-    assert "Alice Uwase" in msg.html
+    # Composer is stubbed via conftest; only the first name reaches the body now.
+    assert "Alice" in msg.html
 
     # status endpoint reflects approval
     status = client.get(f"/api/v1/applications/{task_id}").json()

@@ -1,63 +1,27 @@
-"""Render the underwriting decision into a plain-text + minimal HTML email."""
+"""Render the underwriting decision into a customer-facing email."""
 
 from __future__ import annotations
 
-from src.config import settings
-from src.schemas.decision import DecisionDraft
+from html import escape
 
-_VERDICT_HEADLINES: dict[str, str] = {
-    "accept": "Your application has been approved",
-    "accept_with_conditions": "Your application is approved with conditions",
-    "refer": "Your application is under further review",
-    "decline": "Update on your application",
-}
+from src.schemas.decision import DecisionDraft
+from src.services.email.composer import compose
 
 
 def render(reference: str, applicant_name: str, decision: DecisionDraft) -> tuple[str, str, str]:
-    """Return (subject, html, text)."""
-    headline = _VERDICT_HEADLINES.get(decision.verdict, "Underwriting decision")
-    subject = f"{settings.INSURER_NAME} — {headline} ({reference})"
+    """Return (subject, html, text) for the email shown to the applicant."""
+    first_name = (applicant_name.split()[0] if applicant_name else "there").strip() or "there"
+    composed = compose(reference, first_name, decision)
+    return composed.subject, _to_html(composed.body), composed.body
 
-    bullets_text = "\n".join(f"  - {c}" for c in decision.conditions) or "  (none)"
-    bullets_html = (
-        "<ul>" + "".join(f"<li>{c}</li>" for c in decision.conditions) + "</ul>"
-        if decision.conditions
-        else "<p><em>No conditions.</em></p>"
+
+def _to_html(body: str) -> str:
+    paragraphs = "".join(
+        f"<p>{escape(p).replace(chr(10), '<br>')}</p>" for p in body.split("\n\n") if p.strip()
     )
-    citations = ", ".join(decision.citations) or "—"
-
-    text = f"""Dear {applicant_name},
-
-{headline}.
-
-Reference: {reference}
-Verdict: {decision.verdict.replace("_", " ")}
-Premium loading: +{decision.premium_loading_pct:.1f}%
-
-Conditions:
-{bullets_text}
-
-Reasoning:
-{decision.reasoning}
-
-Cited rules: {citations}
-
-— {settings.INSURER_NAME}
-"""
-
-    html = f"""<!doctype html>
-<html><body style="font-family: ui-sans-serif, system-ui, sans-serif; color:#111;">
-  <p>Dear {applicant_name},</p>
-  <p><strong>{headline}.</strong></p>
-  <p><strong>Reference:</strong> {reference}<br>
-     <strong>Verdict:</strong> {decision.verdict.replace("_", " ")}<br>
-     <strong>Premium loading:</strong> +{decision.premium_loading_pct:.1f}%</p>
-  <h4 style="margin-bottom:4px">Conditions</h4>
-  {bullets_html}
-  <h4 style="margin-bottom:4px">Reasoning</h4>
-  <p style="white-space:pre-line">{decision.reasoning}</p>
-  <p style="color:#666;font-size:12px">Cited rules: {citations}</p>
-  <p style="color:#666;font-size:12px">— {settings.INSURER_NAME}</p>
-</body></html>"""
-
-    return subject, html, text
+    return (
+        '<!doctype html><html><body style="font-family:ui-sans-serif,system-ui,sans-serif;'
+        'color:#111;line-height:1.55;max-width:560px;margin:0 auto;padding:24px;">'
+        f"{paragraphs}"
+        "</body></html>"
+    )
