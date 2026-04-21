@@ -19,6 +19,7 @@ from src.exceptions import (
 from src.rag.ingest import ensure_seeded
 from src.routes.applications import router as applications_router
 from src.routes.districts import router as districts_router
+from src.routes.health import router as health_router
 from src.routes.personas import router as personas_router
 from src.services.log import get_logger
 
@@ -76,11 +77,7 @@ async def validation_error_handler(
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
-@app.get("/api/v1/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
+app.include_router(health_router)
 app.include_router(applications_router)
 app.include_router(personas_router)
 app.include_router(districts_router)
