@@ -35,6 +35,8 @@ export function UiProvider({ children }: { children: React.ReactNode }) {
 
   const confirm = useCallback<ConfirmFn>((options) => {
     return new Promise<boolean>((resolve) => {
+      // If a confirm is already pending, cancel it before replacing the resolver.
+      resolverRef.current?.(false);
       resolverRef.current = resolve;
       setConfirmState(options);
     });

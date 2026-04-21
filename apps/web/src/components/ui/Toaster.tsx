@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 
 export type ToastTone = "success" | "error" | "info";
 
@@ -11,13 +12,32 @@ export type Toast = {
 };
 
 const TONE_STYLES: Record<ToastTone, string> = {
-  success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-100",
-  error: "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/70 dark:text-red-100",
+  success:
+    "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-100",
+  error:
+    "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/70 dark:text-red-100",
   info: "border-zinc-200 bg-white text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100",
 };
 
-export function Toaster({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
-  return (
+function useIsClient(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+export function Toaster({
+  toasts,
+  onDismiss,
+}: {
+  toasts: Toast[];
+  onDismiss: (id: number) => void;
+}) {
+  const mounted = useIsClient();
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       role="region"
       aria-label="Notifications"
@@ -26,7 +46,8 @@ export function Toaster({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} onDismiss={() => onDismiss(t.id)} />
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -44,7 +65,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   return (
     <div
       role={toast.tone === "error" ? "alert" : "status"}
-      className={`pointer-events-auto flex items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg transition-all duration-200 ${
+      className={`pointer-events-auto flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg transition-all duration-200 ${
         TONE_STYLES[toast.tone]
       } ${visible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"}`}
     >
