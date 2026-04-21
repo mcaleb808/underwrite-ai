@@ -14,7 +14,7 @@ from src.db.session import async_session
 from src.graph.builder import build_graph
 from src.schemas.applicant import ApplicantProfile
 from src.services import event_bus
-from src.services.log import bind, get_logger, unbind
+from src.services.log import bind, get_logger, llm_observability, unbind
 
 log = get_logger(__name__)
 
@@ -56,6 +56,7 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
 
     graph = build_graph()
     config = {"configurable": {"thread_id": task_id}}
+    llm_observability.reset_task(task_id)
 
     try:
         async with async_session() as session:
@@ -80,6 +81,12 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
                             await _persist_event(session, task_id, event)
                             await event_bus.publish(task_id, event)
                     await session.commit()
+                usage_event = {
+                    "node": "orchestrator",
+                    "type": "usage",
+                    **llm_observability.get_usage(task_id),
+                }
+                await event_bus.publish(task_id, usage_event)
 
             snapshot = await graph.aget_state(config)
             final: dict[str, Any] = snapshot.values
@@ -130,7 +137,12 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
         )
         await event_bus.close(task_id)
     finally:
-        log.info("graph_duration", duration_ms=round((time.perf_counter() - started) * 1000))
+        log.info(
+            "graph_duration",
+            duration_ms=round((time.perf_counter() - started) * 1000),
+            **llm_observability.get_usage(task_id),
+        )
+        llm_observability.discard_task(task_id)
         unbind("task_id")
 
 

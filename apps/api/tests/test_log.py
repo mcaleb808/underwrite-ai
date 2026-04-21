@@ -111,7 +111,7 @@ def test_llm_observability_handles_missing_usage(capsys: pytest.CaptureFixture[s
     matches = [p for p in payloads if p.get("event") == "llm_call"]
     assert matches
     assert matches[-1]["model"] is None
-    assert matches[-1]["total_tokens"] is None
+    assert matches[-1]["total_tokens"] == 0
 
 
 def test_llm_observability_logs_errors(capsys: pytest.CaptureFixture[str]) -> None:
@@ -124,3 +124,82 @@ def test_llm_observability_logs_errors(capsys: pytest.CaptureFixture[str]) -> No
     matches = [p for p in payloads if p.get("event") == "llm_call_error"]
     assert matches
     assert "boom" in matches[-1]["error"]
+
+
+def _llm_response(model: str, prompt: int, completion: int) -> LLMResult:
+    return LLMResult(
+        generations=[[]],
+        llm_output={
+            "model_name": model,
+            "token_usage": {
+                "prompt_tokens": prompt,
+                "completion_tokens": completion,
+                "total_tokens": prompt + completion,
+            },
+        },
+    )
+
+
+def test_usage_accumulates_per_task() -> None:
+    cb = logmod.LLMObservability()
+    cb.reset_task("t-1")
+    logmod.bind(task_id="t-1")
+
+    rid1 = uuid4()
+    cb.on_llm_start({}, [""], run_id=rid1)
+    cb.on_llm_end(_llm_response("openai/gpt-4o-mini", 100, 50), run_id=rid1)
+
+    rid2 = uuid4()
+    cb.on_llm_start({}, [""], run_id=rid2)
+    cb.on_llm_end(_llm_response("openai/gpt-4o-mini", 200, 100), run_id=rid2)
+
+    usage = cb.get_usage("t-1")
+    assert usage["prompt_tokens"] == 300
+    assert usage["completion_tokens"] == 150
+    assert usage["total_tokens"] == 450
+    assert usage["calls"] == 2
+    assert usage["cost_usd"] > 0
+
+
+def test_usage_isolated_between_tasks() -> None:
+    cb = logmod.LLMObservability()
+    cb.reset_task("a")
+    cb.reset_task("b")
+
+    logmod.bind(task_id="a")
+    rid_a = uuid4()
+    cb.on_llm_start({}, [""], run_id=rid_a)
+    cb.on_llm_end(_llm_response("openai/gpt-4o-mini", 100, 50), run_id=rid_a)
+
+    logmod.bind(task_id="b")
+    rid_b = uuid4()
+    cb.on_llm_start({}, [""], run_id=rid_b)
+    cb.on_llm_end(_llm_response("openai/gpt-4o-mini", 1, 1), run_id=rid_b)
+
+    assert cb.get_usage("a")["prompt_tokens"] == 100
+    assert cb.get_usage("b")["prompt_tokens"] == 1
+
+
+def test_usage_ignored_when_task_not_reset() -> None:
+    cb = logmod.LLMObservability()
+    logmod.bind(task_id="not-tracked")
+    rid = uuid4()
+    cb.on_llm_start({}, [""], run_id=rid)
+    cb.on_llm_end(_llm_response("openai/gpt-4o-mini", 100, 50), run_id=rid)
+
+    # discard returns empty since we never reset
+    usage = cb.get_usage("not-tracked")
+    assert usage["total_tokens"] == 0
+    assert usage["calls"] == 0
+
+
+def test_discard_task_removes_state() -> None:
+    cb = logmod.LLMObservability()
+    cb.reset_task("t")
+    logmod.bind(task_id="t")
+    rid = uuid4()
+    cb.on_llm_start({}, [""], run_id=rid)
+    cb.on_llm_end(_llm_response("openai/gpt-4o-mini", 10, 5), run_id=rid)
+    assert cb.get_usage("t")["calls"] == 1
+    cb.discard_task("t")
+    assert cb.get_usage("t")["calls"] == 0
