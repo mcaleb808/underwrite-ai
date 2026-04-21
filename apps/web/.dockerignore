@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+
+.env
+.env.*
+
+.git/
+.DS_Store
+
+**/*.test.*
+**/*.spec.*
+playwright-report/
+.playwright-mcp/

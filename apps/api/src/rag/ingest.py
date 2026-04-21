@@ -9,18 +9,21 @@ from src.config import settings
 from src.rag.chunks import chunk_markdown
 
 
-def ingest(md_path: str | Path, persist_dir: str | Path) -> int:
-    """Chunk the guidelines markdown and upsert into Chroma.
-
-    Returns the number of chunks ingested.
-    """
+def _collection(persist_dir: str | Path):
     client = chromadb.PersistentClient(path=str(persist_dir))
     ef = embedding_functions.OpenAIEmbeddingFunction(
         api_key=settings.OPENAI_API_KEY,
         model_name="text-embedding-3-small",
     )
-    collection = client.get_or_create_collection("uw_guidelines", embedding_function=ef)
+    return client.get_or_create_collection("uw_guidelines", embedding_function=ef)
 
+
+def ingest(md_path: str | Path, persist_dir: str | Path) -> int:
+    """Chunk the guidelines markdown and upsert into Chroma.
+
+    Returns the number of chunks ingested.
+    """
+    collection = _collection(persist_dir)
     text = Path(md_path).read_text()
     chunks = chunk_markdown(text)
 
@@ -31,3 +34,10 @@ def ingest(md_path: str | Path, persist_dir: str | Path) -> int:
     )
 
     return len(chunks)
+
+
+def ensure_seeded(md_path: str | Path, persist_dir: str | Path) -> int:
+    """Ingest only if the collection is empty. Returns chunks added (0 if already seeded)."""
+    if _collection(persist_dir).count() > 0:
+        return 0
+    return ingest(md_path, persist_dir)
