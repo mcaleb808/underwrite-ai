@@ -19,7 +19,7 @@ flowchart LR
   DB[("SQLite<br/>applications · tasks · events · decisions")]
   Chroma[("Chroma<br/>guideline chunks")]
   Uploads[("uploads/<br/>medical PDFs")]
-  Email["Email provider<br/>(console · resend · smtp)"]
+  Email["Email provider<br/>(console · resend)"]
 
   Browser -- "POST /applications · GET /events (SSE)" --> API
   API -- "ainvoke · astream" --> Graph
