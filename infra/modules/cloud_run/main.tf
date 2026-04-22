@@ -1,9 +1,10 @@
 resource "google_cloud_run_v2_service" "this" {
-  project  = var.project_id
-  name     = var.service_name
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
-  labels   = var.labels
+  project             = var.project_id
+  name                = var.service_name
+  location            = var.region
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false
+  labels              = var.labels
 
   template {
     service_account = var.runtime_sa_email
@@ -43,7 +44,23 @@ resource "google_cloud_run_v2_service" "this" {
       }
       env {
         name  = "EMAIL_PROVIDER"
-        value = "console"
+        value = var.email_provider
+      }
+      env {
+        name  = "EMAIL_FROM"
+        value = var.email_from
+      }
+      env {
+        name  = "EMAIL_REPLY_TO"
+        value = var.email_reply_to
+      }
+      env {
+        name  = "EMAIL_OVERRIDE_TO"
+        value = var.email_override_to
+      }
+      env {
+        name  = "INSURER_NAME"
+        value = var.insurer_name
       }
 
       dynamic "env" {

@@ -54,15 +54,20 @@ module "secrets" {
 }
 
 module "cloud_run" {
-  source           = "./modules/cloud_run"
-  project_id       = var.project_id
-  region           = var.region
-  service_name     = "underwrite-api-${local.name_suffix}"
-  image            = var.bootstrap_image
-  runtime_sa_email = module.service_account.email
-  secret_env       = module.secrets.env_bindings
-  web_origin       = var.web_origin
-  labels           = local.labels
+  source            = "./modules/cloud_run"
+  project_id        = var.project_id
+  region            = var.region
+  service_name      = "underwrite-api-${local.name_suffix}"
+  image             = var.bootstrap_image
+  runtime_sa_email  = module.service_account.email
+  secret_env        = module.secrets.env_bindings
+  web_origin        = var.web_origin
+  email_provider    = var.email_provider
+  email_from        = var.email_from
+  email_reply_to    = var.email_reply_to
+  email_override_to = var.email_override_to
+  insurer_name      = var.insurer_name
+  labels            = local.labels
 
   depends_on = [module.artifact_registry, module.secrets]
 }

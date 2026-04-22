@@ -7,3 +7,13 @@ github_repo  = "underwrite-ai"
 # Set this once you know the Vercel URL. Wildcards are not allowed
 # (the api uses allow_credentials=True, which browsers reject with *).
 web_origin = "https://underwrite-ai.vercel.app"
+
+# Email config (all optional — sensible defaults exist).
+# email_provider    = "resend"
+# email_from        = "UnderwriteAI <onboarding@resend.dev>"
+# email_reply_to    = "underwriting@underwriteai.rw"
+# insurer_name      = "UnderwriteAI Demo Insurer"
+#
+# Reroute every outbound email to a single inbox (useful for demos so seed-
+# persona @example.com recipients still land somewhere visible).
+# email_override_to = "you@example.com"

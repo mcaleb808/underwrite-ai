@@ -20,4 +20,32 @@ variable "max_instances" {
   description = "Cloud Run max instance count. Defaults to 1 so per-instance sqlite stays consistent."
 }
 
+variable "email_provider" {
+  type        = string
+  default     = "resend"
+  description = "EMAIL_PROVIDER for the api. Use 'console' to log instead of sending."
+}
+
+variable "email_from" {
+  type        = string
+  description = "EMAIL_FROM header for outbound mail."
+}
+
+variable "email_reply_to" {
+  type        = string
+  description = "EMAIL_REPLY_TO header for outbound mail."
+}
+
+variable "email_override_to" {
+  type        = string
+  default     = ""
+  description = "If set, every outbound email is rerouted here. Use for demo to keep all mail in one inbox."
+}
+
+variable "insurer_name" {
+  type        = string
+  default     = "UnderwriteAI Demo Insurer"
+  description = "Insurer name used in email body and decision letters."
+}
+
 variable "labels" { type = map(string) }
