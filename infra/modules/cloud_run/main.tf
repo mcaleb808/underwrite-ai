@@ -43,7 +43,23 @@ resource "google_cloud_run_v2_service" "this" {
       }
       env {
         name  = "EMAIL_PROVIDER"
-        value = "console"
+        value = var.email_provider
+      }
+      env {
+        name  = "EMAIL_FROM"
+        value = var.email_from
+      }
+      env {
+        name  = "EMAIL_REPLY_TO"
+        value = var.email_reply_to
+      }
+      env {
+        name  = "EMAIL_OVERRIDE_TO"
+        value = var.email_override_to
+      }
+      env {
+        name  = "INSURER_NAME"
+        value = var.insurer_name
       }
 
       dynamic "env" {
