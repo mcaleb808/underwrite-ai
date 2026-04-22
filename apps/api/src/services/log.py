@@ -166,8 +166,13 @@ configure()
 
 
 def llm_callbacks() -> list[BaseCallbackHandler]:
-    """Callbacks every ChatOpenAI in a node should receive."""
-    callbacks: list[BaseCallbackHandler] = [llm_observability]
+    """Per-LLM callbacks. Pass to ChatOpenAI."""
+    return [llm_observability]
+
+
+def graph_callbacks() -> list[BaseCallbackHandler]:
+    """Whole-chain callbacks. Pass via RunnableConfig so Langfuse sees the full tree."""
+    callbacks: list[BaseCallbackHandler] = []
     if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
         from langfuse.langchain import CallbackHandler
 
@@ -182,6 +187,7 @@ __all__ = [
     "clear",
     "configure",
     "get_logger",
+    "graph_callbacks",
     "llm_callbacks",
     "llm_observability",
     "unbind",

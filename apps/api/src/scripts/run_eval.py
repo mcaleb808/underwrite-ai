@@ -10,10 +10,13 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
+from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel, Field
 
 from src.graph.builder import build_graph
 from src.schemas.applicant import ApplicantProfile
+from src.services.log import graph_callbacks
+from src.services.tracing import configure_tracing, tracer
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 APPLICANTS_DIR = ROOT / "src" / "data" / "applicants"
@@ -147,12 +150,35 @@ def _run_one(case: Case) -> CaseResult:
     profile = ApplicantProfile.model_validate_json(applicant_path.read_text())
 
     graph = build_graph()
-    config = {"configurable": {"thread_id": uuid.uuid4().hex}}
+    task_id = f"eval-{case.name}"
+    config = {
+        "configurable": {"thread_id": uuid.uuid4().hex},
+        "callbacks": graph_callbacks(),
+    }
     started = time.perf_counter()
-    state = graph.invoke(
-        {"task_id": f"eval-{case.name}", "applicant": profile, "events": []},
-        config,
-    )
+    with tracer().start_as_current_span(
+        "underwriting.run",
+        attributes={
+            "langfuse.session.id": "eval",
+            "underwriting.task_id": task_id,
+            "underwriting.case_id": case.name,
+            "underwriting.eval": True,
+        },
+    ) as span:
+        try:
+            state = graph.invoke(
+                {"task_id": task_id, "applicant": profile, "events": []},
+                config,
+            )
+        except Exception as exc:
+            span.record_exception(exc)
+            span.set_status(Status(StatusCode.ERROR, repr(exc)))
+            raise
+        span.set_attribute("underwriting.verdict", str(state["decision"].verdict))
+        span.set_attribute("underwriting.risk_band", str(state["risk_band"]))
+        span.set_attribute("underwriting.risk_score", float(state["risk_score"]))
+        span.set_attribute("underwriting.revision_count", int(state.get("revision_count", 0)))
+        span.set_status(Status(StatusCode.OK))
     duration_ms = round((time.perf_counter() - started) * 1000)
 
     decision = state["decision"]
@@ -316,6 +342,7 @@ def _render_report(results: list[CaseResult]) -> str:
 
 
 def main() -> int:
+    configure_tracing()
     suite = Suite.model_validate(yaml.safe_load(CASES_FILE.read_text()))
 
     results: list[CaseResult] = []

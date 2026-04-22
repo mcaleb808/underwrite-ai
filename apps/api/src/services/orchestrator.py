@@ -7,6 +7,7 @@ import json
 import time
 from typing import Any
 
+from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +23,8 @@ from src.schemas.events import (
     OrchestratorUsage,
 )
 from src.services import event_bus
-from src.services.log import bind, get_logger, llm_observability, unbind
+from src.services.log import bind, get_logger, graph_callbacks, llm_observability, unbind
+from src.services.tracing import tracer
 
 log = get_logger(__name__)
 
@@ -83,114 +85,142 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
     log.info("graph_start", doc_count=len(doc_paths))
 
     graph = build_graph()
-    config = {"configurable": {"thread_id": task_id}}
+    config = {
+        "configurable": {"thread_id": task_id},
+        "callbacks": graph_callbacks(),
+    }
     llm_observability.reset_task(task_id)
     cancel_event = asyncio.Event()
     _cancel_events[task_id] = cancel_event
 
-    try:
-        async with async_session() as session:
-            await _set_status(session, task_id, TaskStatus.running)
-            await session.commit()
-        await event_bus.publish(task_id, _to_dict(OrchestratorStarted()))
-
+    with tracer().start_as_current_span(
+        "underwriting.run",
+        attributes={
+            "langfuse.session.id": applicant.applicant_id,
+            "langfuse.user.id": applicant.applicant_id,
+            "underwriting.task_id": task_id,
+            "underwriting.doc_count": len(doc_paths),
+        },
+    ) as span:
         try:
-            cancelled = False
-            async for chunk in graph.astream(
-                {
-                    "task_id": task_id,
-                    "applicant": applicant,
-                    "medical_doc_paths": doc_paths,
-                    "events": [],
-                },
-                config,
-                stream_mode="updates",
-            ):
-                async with async_session() as session:
-                    for _, update in chunk.items():
-                        for event in update.get("events") or []:
-                            await _persist_event(session, task_id, event)
-                            await event_bus.publish(task_id, _to_dict(event))
-                    await session.commit()
-                usage = llm_observability.get_usage(task_id)
-                usage_event = OrchestratorUsage(
-                    prompt_tokens=int(usage["prompt_tokens"]),
-                    completion_tokens=int(usage["completion_tokens"]),
-                    total_tokens=int(usage["total_tokens"]),
-                    cost_usd=float(usage["cost_usd"]),
-                    calls=int(usage["calls"]),
-                )
-                await event_bus.publish(task_id, _to_dict(usage_event))
+            async with async_session() as session:
+                await _set_status(session, task_id, TaskStatus.running)
+                await session.commit()
+            await event_bus.publish(task_id, _to_dict(OrchestratorStarted()))
 
-                if cancel_event.is_set():
-                    cancelled = True
-                    break
+            try:
+                cancelled = False
+                async for chunk in graph.astream(
+                    {
+                        "task_id": task_id,
+                        "applicant": applicant,
+                        "medical_doc_paths": doc_paths,
+                        "events": [],
+                    },
+                    config,
+                    stream_mode="updates",
+                ):
+                    async with async_session() as session:
+                        for _, update in chunk.items():
+                            for event in update.get("events") or []:
+                                await _persist_event(session, task_id, event)
+                                await event_bus.publish(task_id, _to_dict(event))
+                        await session.commit()
+                    usage = llm_observability.get_usage(task_id)
+                    usage_event = OrchestratorUsage(
+                        prompt_tokens=int(usage["prompt_tokens"]),
+                        completion_tokens=int(usage["completion_tokens"]),
+                        total_tokens=int(usage["total_tokens"]),
+                        cost_usd=float(usage["cost_usd"]),
+                        calls=int(usage["calls"]),
+                    )
+                    await event_bus.publish(task_id, _to_dict(usage_event))
 
-            if cancelled:
-                log.warning("graph_cancelled")
-                cancel_evt = OrchestratorError(error="cancelled by user")
+                    if cancel_event.is_set():
+                        cancelled = True
+                        break
+
+                if cancelled:
+                    log.warning("graph_cancelled")
+                    span.set_attribute("underwriting.cancelled", True)
+                    cancel_evt = OrchestratorError(error="cancelled by user")
+                    async with async_session() as session:
+                        await _persist_event(session, task_id, cancel_evt)
+                        await _set_status(session, task_id, TaskStatus.cancelled)
+                        await session.commit()
+                    await event_bus.publish(task_id, _to_dict(cancel_evt))
+                    await event_bus.close(task_id)
+                    return
+
+                snapshot = await graph.aget_state(config)
+                final: dict[str, Any] = snapshot.values
+            except Exception as exc:
+                log.exception("graph_end", status="failed", error=repr(exc))
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, repr(exc)))
+                err_event = OrchestratorError(error=repr(exc))
                 async with async_session() as session:
-                    await _persist_event(session, task_id, cancel_evt)
-                    await _set_status(session, task_id, TaskStatus.cancelled)
+                    await _persist_event(session, task_id, err_event)
+                    await _set_status(session, task_id, TaskStatus.failed)
                     await session.commit()
-                await event_bus.publish(task_id, _to_dict(cancel_evt))
+                await event_bus.publish(task_id, _to_dict(err_event))
                 await event_bus.close(task_id)
                 return
 
-            snapshot = await graph.aget_state(config)
-            final: dict[str, Any] = snapshot.values
-        except Exception as exc:
-            log.exception("graph_end", status="failed", error=repr(exc))
-            err_event = OrchestratorError(error=repr(exc))
             async with async_session() as session:
-                await _persist_event(session, task_id, err_event)
-                await _set_status(session, task_id, TaskStatus.failed)
-                await session.commit()
-            await event_bus.publish(task_id, _to_dict(err_event))
-            await event_bus.close(task_id)
-            return
+                decision = final.get("decision")
+                if decision is not None:
+                    await _persist_decision(session, task_id, decision)
 
-        async with async_session() as session:
-            decision = final.get("decision")
-            if decision is not None:
-                await _persist_decision(session, task_id, decision)
-
-            task = (await session.execute(select(Task).where(Task.task_id == task_id))).scalar_one()
-            task.risk_score = final.get("risk_score")
-            task.risk_band = final.get("risk_band")
-            factors = final.get("risk_factors") or []
-            task.risk_factors_json = json.dumps(
-                [f.model_dump() if hasattr(f, "model_dump") else dict(f) for f in factors]
-            )
-            task.status = TaskStatus.awaiting_review if decision is not None else TaskStatus.failed
-            await session.commit()
-
-        log.info(
-            "graph_end",
-            status="done",
-            verdict=getattr(decision, "verdict", None),
-            risk_score=final.get("risk_score"),
-        )
-
-        await event_bus.publish(
-            task_id,
-            _to_dict(
-                OrchestratorFinalized(
-                    verdict=getattr(decision, "verdict", None),
-                    risk_score=final.get("risk_score"),
+                task = (
+                    await session.execute(select(Task).where(Task.task_id == task_id))
+                ).scalar_one()
+                task.risk_score = final.get("risk_score")
+                task.risk_band = final.get("risk_band")
+                factors = final.get("risk_factors") or []
+                task.risk_factors_json = json.dumps(
+                    [f.model_dump() if hasattr(f, "model_dump") else dict(f) for f in factors]
                 )
-            ),
-        )
-        await event_bus.close(task_id)
-    finally:
-        log.info(
-            "graph_duration",
-            duration_ms=round((time.perf_counter() - started) * 1000),
-            **llm_observability.get_usage(task_id),
-        )
-        llm_observability.discard_task(task_id)
-        _cancel_events.pop(task_id, None)
-        unbind("task_id")
+                task.status = (
+                    TaskStatus.awaiting_review if decision is not None else TaskStatus.failed
+                )
+                await session.commit()
+
+            if decision is not None:
+                span.set_attribute("underwriting.verdict", str(decision.verdict))
+            if final.get("risk_score") is not None:
+                span.set_attribute("underwriting.risk_score", float(final["risk_score"]))
+            if final.get("risk_band") is not None:
+                span.set_attribute("underwriting.risk_band", str(final["risk_band"]))
+            span.set_attribute("underwriting.revision_count", int(final.get("revision_count", 0)))
+            span.set_status(Status(StatusCode.OK))
+
+            log.info(
+                "graph_end",
+                status="done",
+                verdict=getattr(decision, "verdict", None),
+                risk_score=final.get("risk_score"),
+            )
+
+            await event_bus.publish(
+                task_id,
+                _to_dict(
+                    OrchestratorFinalized(
+                        verdict=getattr(decision, "verdict", None),
+                        risk_score=final.get("risk_score"),
+                    )
+                ),
+            )
+            await event_bus.close(task_id)
+        finally:
+            log.info(
+                "graph_duration",
+                duration_ms=round((time.perf_counter() - started) * 1000),
+                **llm_observability.get_usage(task_id),
+            )
+            llm_observability.discard_task(task_id)
+            _cancel_events.pop(task_id, None)
+            unbind("task_id")
 
 
 __all__ = ["request_cancel", "run_task"]
