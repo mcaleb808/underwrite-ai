@@ -19,7 +19,8 @@ log = get_logger(__name__)
 _configured = False
 
 
-def configure_tracing(app: FastAPI) -> None:
+def configure_tracing(app: FastAPI | None = None) -> None:
+    """Wire up OTel. Pass `app` for the HTTP server; omit it from CLI entry points."""
     global _configured
     if _configured:
         return
@@ -46,7 +47,8 @@ def configure_tracing(app: FastAPI) -> None:
         )
         log.info("tracing_langfuse_enabled", host=settings.LANGFUSE_HOST)
 
-    FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
+    if app is not None:
+        FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
 
 
 def tracer() -> trace.Tracer:
