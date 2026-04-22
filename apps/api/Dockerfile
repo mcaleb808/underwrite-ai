@@ -20,6 +20,11 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
+# Seed medical pdfs are gitignored generated artifacts, so they aren't in the
+# source checkout. Generate them once at build time — no startup cost, no
+# runtime write to /tmp on every cold start.
+RUN /opt/venv/bin/python -m src.scripts.generate_medical_pdfs
+
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
 # tini forwards SIGTERM to uvicorn so in-flight requests drain on scale-down.
