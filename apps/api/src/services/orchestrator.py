@@ -23,7 +23,7 @@ from src.schemas.events import (
     OrchestratorUsage,
 )
 from src.services import event_bus
-from src.services.log import bind, get_logger, llm_observability, unbind
+from src.services.log import bind, get_logger, graph_callbacks, llm_observability, unbind
 from src.services.tracing import tracer
 
 log = get_logger(__name__)
@@ -85,7 +85,10 @@ async def run_task(task_id: str, applicant: ApplicantProfile, doc_paths: list[st
     log.info("graph_start", doc_count=len(doc_paths))
 
     graph = build_graph()
-    config = {"configurable": {"thread_id": task_id}}
+    config = {
+        "configurable": {"thread_id": task_id},
+        "callbacks": graph_callbacks(),
+    }
     llm_observability.reset_task(task_id)
     cancel_event = asyncio.Event()
     _cancel_events[task_id] = cancel_event

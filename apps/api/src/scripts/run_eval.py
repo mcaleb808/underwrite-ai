@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from src.graph.builder import build_graph
 from src.schemas.applicant import ApplicantProfile
+from src.services.log import graph_callbacks
 from src.services.tracing import configure_tracing, tracer
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -150,7 +151,10 @@ def _run_one(case: Case) -> CaseResult:
 
     graph = build_graph()
     task_id = f"eval-{case.name}"
-    config = {"configurable": {"thread_id": uuid.uuid4().hex}}
+    config = {
+        "configurable": {"thread_id": uuid.uuid4().hex},
+        "callbacks": graph_callbacks(),
+    }
     started = time.perf_counter()
     with tracer().start_as_current_span(
         "underwriting.run",
