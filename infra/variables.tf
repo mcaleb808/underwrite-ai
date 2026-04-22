@@ -15,12 +15,6 @@ variable "env_name" {
   description = "Suffix used to keep resource names unique within the project."
 }
 
-variable "image_tag" {
-  type        = string
-  default     = "latest"
-  description = "Initial image tag. After first apply, CI overrides the running image and terraform ignores the field."
-}
-
 variable "bootstrap_image" {
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"

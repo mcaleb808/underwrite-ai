@@ -10,6 +10,8 @@ Terraform stack for the api on Google Cloud Run, fronted by Vercel.
 - **Runtime service account** — least-privilege: `secretAccessor` on each secret, `logging.logWriter` on the project. Nothing else.
 - **Workload Identity Federation** — lets the `main` branch of a specific GitHub repo impersonate a deploy service account without a JSON key in the repo. Feature branches and forks cannot.
 
+Email settings (`EMAIL_PROVIDER`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_OVERRIDE_TO`, `INSURER_NAME`) are plain Cloud Run env vars, configurable via the `email_*` variables in `terraform.tfvars`. Defaults match the local `.env.example`.
+
 The Vercel side is configured manually (one-time): connect the repo on the Vercel dashboard and set `NEXT_PUBLIC_API_URL` to the Cloud Run URL printed by `terraform output api_url`.
 
 ## How the image lifecycle works
@@ -78,6 +80,14 @@ echo -n "${RESEND_API_KEY}"     | gcloud secrets versions add RESEND_API_KEY_dem
 | `GCP_CLOUD_RUN_SERVICE` | `underwrite-api-demo` |
 
 Pushes to `main` then build, push to Artifact Registry, and roll a new Cloud Run revision.
+
+For the web deploy workflow, add three more secrets:
+
+| Secret | Source |
+|---|---|
+| `VERCEL_TOKEN` | mint at https://vercel.com/account/tokens, scoped to the team that owns the project |
+| `VERCEL_ORG_ID` | `apps/web/.vercel/project.json` → `orgId` (written by `vercel link`) |
+| `VERCEL_PROJECT_ID` | `apps/web/.vercel/project.json` → `projectId` |
 
 ## Tear down
 
