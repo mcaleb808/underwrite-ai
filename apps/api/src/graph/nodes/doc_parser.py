@@ -10,7 +10,8 @@ from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.events import DocParserParsed
 from src.schemas.medical import ParsedMedicalRecord
-from src.services.log import bind_node, get_logger, llm_observability
+from src.services.log import bind_node, get_logger, llm_callbacks
+from src.services.tracing import tracer
 from src.tools.pdf_extract import extract_text
 
 log = get_logger(__name__)
@@ -40,7 +41,7 @@ def _llm() -> ChatOpenAI:
         base_url=settings.OPENROUTER_BASE_URL,
         temperature=0,
         timeout=60,
-        callbacks=[llm_observability],
+        callbacks=llm_callbacks(),
     )
 
 
@@ -70,26 +71,27 @@ def _parse_one(pdf_path: Path) -> ParsedMedicalRecord:
 
 def run(state: UnderwritingState) -> dict[str, Any]:
     bind_node(state, "doc_parser")
-    paths = state.get("medical_doc_paths") or []
-    if not paths and "applicant" in state:
-        paths = list(state["applicant"].medical_docs)
+    with tracer().start_as_current_span("node.doc_parser"):
+        paths = state.get("medical_doc_paths") or []
+        if not paths and "applicant" in state:
+            paths = list(state["applicant"].medical_docs)
 
-    parsed: list[ParsedMedicalRecord] = []
-    errors: list[str] = []
-    for raw in paths:
-        resolved = _resolve(raw)
-        try:
-            parsed.append(_parse_one(resolved))
-        except Exception as exc:
-            errors.append(f"doc_parser failed for {raw}: {exc!r}")
-            log.warning("doc_parse_failed", path=raw, error=repr(exc))
+        parsed: list[ParsedMedicalRecord] = []
+        errors: list[str] = []
+        for raw in paths:
+            resolved = _resolve(raw)
+            try:
+                parsed.append(_parse_one(resolved))
+            except Exception as exc:
+                errors.append(f"doc_parser failed for {raw}: {exc!r}")
+                log.warning("doc_parse_failed", path=raw, error=repr(exc))
 
-    log.info("node_end", status="done", parsed=len(parsed), errors=len(errors))
+        log.info("node_end", status="done", parsed=len(parsed), errors=len(errors))
 
-    update: dict[str, Any] = {
-        "parsed_medical": parsed,
-        "events": [DocParserParsed(doc_count=len(parsed), error_count=len(errors))],
-    }
-    if errors:
-        update["errors"] = errors
-    return update
+        update: dict[str, Any] = {
+            "parsed_medical": parsed,
+            "events": [DocParserParsed(doc_count=len(parsed), error_count=len(errors))],
+        }
+        if errors:
+            update["errors"] = errors
+        return update

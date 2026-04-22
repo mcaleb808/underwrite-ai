@@ -13,6 +13,7 @@ from src.rag.retriever import retrieve
 from src.schemas.decision import GuidelineChunk
 from src.schemas.events import GuidelinesRetrieved
 from src.services.log import bind_node, get_logger
+from src.services.tracing import tracer
 
 log = get_logger(__name__)
 
@@ -41,33 +42,34 @@ def _retrieve_rule(rule_id: str) -> GuidelineChunk | None:
 
 def run(state: UnderwritingState) -> dict[str, Any]:
     bind_node(state, "guidelines_rag")
-    query = _build_query(state)
-    semantic = retrieve(query, settings.CHROMA_DIR, k=6)
+    with tracer().start_as_current_span("node.guidelines_rag"):
+        query = _build_query(state)
+        semantic = retrieve(query, settings.CHROMA_DIR, k=6)
 
-    seen = {c.rule_id for c in semantic}
-    pinned: list[GuidelineChunk] = []
-    for rule_id in _PINNED_RULES:
-        if rule_id in seen:
-            continue
-        chunk = _retrieve_rule(rule_id)
-        if chunk is not None:
-            pinned.append(chunk)
-            seen.add(rule_id)
+        seen = {c.rule_id for c in semantic}
+        pinned: list[GuidelineChunk] = []
+        for rule_id in _PINNED_RULES:
+            if rule_id in seen:
+                continue
+            chunk = _retrieve_rule(rule_id)
+            if chunk is not None:
+                pinned.append(chunk)
+                seen.add(rule_id)
 
-    chunks = semantic + pinned
-    log.info(
-        "node_end",
-        status="done",
-        semantic_count=len(semantic),
-        pinned_count=len(pinned),
-        rule_ids=[c.rule_id for c in chunks],
-    )
-    return {
-        "retrieved_guidelines": chunks,
-        "events": [
-            GuidelinesRetrieved(
-                chunk_count=len(chunks),
-                rule_ids=[c.rule_id for c in chunks],
-            )
-        ],
-    }
+        chunks = semantic + pinned
+        log.info(
+            "node_end",
+            status="done",
+            semantic_count=len(semantic),
+            pinned_count=len(pinned),
+            rule_ids=[c.rule_id for c in chunks],
+        )
+        return {
+            "retrieved_guidelines": chunks,
+            "events": [
+                GuidelinesRetrieved(
+                    chunk_count=len(chunks),
+                    rule_ids=[c.rule_id for c in chunks],
+                )
+            ],
+        }

@@ -16,12 +16,14 @@ from src.exceptions import (
     InvalidStateTransitionError,
     TaskNotFoundError,
 )
+from src.middleware.request_id import RequestIDMiddleware
 from src.rag.ingest import ensure_seeded
 from src.routes.applications import router as applications_router
 from src.routes.districts import router as districts_router
 from src.routes.health import router as health_router
 from src.routes.personas import router as personas_router
 from src.services.log import get_logger
+from src.services.tracing import configure_tracing
 
 log = get_logger(__name__)
 
@@ -55,7 +57,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
+app.add_middleware(RequestIDMiddleware)
+configure_tracing(app)
 
 
 @app.exception_handler(TaskNotFoundError)

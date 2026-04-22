@@ -45,4 +45,14 @@ variable "insurer_name" {
   description = "Insurer name used in email body and decision letters."
 }
 
+variable "langfuse_public_key" {
+  type        = string
+  description = "Langfuse public key. Blank disables Langfuse tracing."
+}
+
+variable "langfuse_host" {
+  type        = string
+  description = "Langfuse host URL."
+}
+
 variable "labels" { type = map(string) }

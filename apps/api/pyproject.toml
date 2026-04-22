@@ -24,6 +24,10 @@ dependencies = [
     "slowapi>=0.1.9",
     "python-multipart>=0.0.18",
     "pyyaml>=6.0",
+    "langfuse>=4.0",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-exporter-gcp-trace>=1.9",
 ]
 
 [dependency-groups]
