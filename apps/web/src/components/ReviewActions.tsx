@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { approveDecision, modifyDecision, reevaluate } from "@/lib/api";
+import { approveDecision, getApplication, modifyDecision, reevaluate } from "@/lib/api";
 import type { ApplicationStatus, Verdict } from "@/lib/types";
 
 const VERDICTS: Verdict[] = ["accept", "accept_with_conditions", "refer", "decline"];
@@ -62,12 +62,7 @@ export function ReviewActions({
     try {
       const result = await approveDecision(status.task_id, "underwriter@demo");
       setEmailNotice(`email: ${result.email_status} (${result.provider_message_id ?? "—"})`);
-      // refresh status
-      const refreshed = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/applications/${status.task_id}`,
-        { cache: "no-store" },
-      ).then((r) => r.json());
-      onChange(refreshed);
+      onChange(await getApplication(status.task_id));
     } catch (e) {
       setError(e instanceof Error ? e.message : "unknown error");
     } finally {

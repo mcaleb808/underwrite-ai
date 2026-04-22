@@ -22,8 +22,7 @@ variable "max_instances" {
 
 variable "email_provider" {
   type        = string
-  default     = "resend"
-  description = "EMAIL_PROVIDER for the api. Use 'console' to log instead of sending."
+  description = "EMAIL_PROVIDER for the api ('resend' or 'console')."
 }
 
 variable "email_from" {
@@ -38,13 +37,11 @@ variable "email_reply_to" {
 
 variable "email_override_to" {
   type        = string
-  default     = ""
-  description = "If set, every outbound email is rerouted here. Use for demo to keep all mail in one inbox."
+  description = "If set, every outbound email is rerouted here."
 }
 
 variable "insurer_name" {
   type        = string
-  default     = "UnderwriteAI Demo Insurer"
   description = "Insurer name used in email body and decision letters."
 }
 

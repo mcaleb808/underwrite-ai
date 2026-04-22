@@ -9,12 +9,23 @@ import type {
   Verdict,
 } from "./types";
 
-// Server-side renders use INTERNAL_API_URL (docker service hostname);
-// the browser uses the publicly-reachable NEXT_PUBLIC_API_URL.
-const API =
-  typeof window === "undefined"
-    ? (process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
-    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
+// `||` short-circuits empty strings too (unlike `??`). `?.trim()` guards
+// against trailing-newline garbage from misuses of `vercel env add`.
+function resolveApiBase(): string {
+  const isServer = typeof window === "undefined";
+  const internal = process.env.INTERNAL_API_URL?.trim();
+  const fromBuild = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const url = isServer ? internal || fromBuild : fromBuild;
+  if (url) return url;
+  if (isServer) {
+    throw new Error(
+      "API base URL is not configured. Set NEXT_PUBLIC_API_URL (or INTERNAL_API_URL for docker-compose).",
+    );
+  }
+  return "http://localhost:8000";
+}
+
+const API = resolveApiBase();
 
 export async function listPersonas(): Promise<PersonaSummary[]> {
   const res = await fetch(`${API}/api/v1/personas`, { cache: "no-store" });
