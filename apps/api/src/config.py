@@ -40,8 +40,9 @@ class Settings(BaseSettings):
     EMAIL_OVERRIDE_TO: str = ""
 
     # observability
-    LANGSMITH_API_KEY: str = ""
-    LANGSMITH_PROJECT: str = "underwrite-ai"
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
     LOG_LEVEL: str = "INFO"
 
 

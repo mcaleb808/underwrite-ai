@@ -5,12 +5,14 @@ Terraform stack for the api on Google Cloud Run, fronted by Vercel.
 ## What this provisions
 
 - **Artifact Registry** — Docker repo for the api image, with a cleanup policy that keeps the last 3 tagged versions and deletes untagged images after 7 days.
-- **Cloud Run service** — `min=0` / `max=1` (single instance for consistent per-instance sqlite state), 1 vCPU / 2 GB, scale-to-zero. Pulls `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `RESEND_API_KEY` from Secret Manager.
-- **Secret Manager** — three secrets, accessible only to the runtime service account.
-- **Runtime service account** — least-privilege: `secretAccessor` on each secret, `logging.logWriter` on the project. Nothing else.
+- **Cloud Run service** — `min=0` / `max=1` (single instance for consistent per-instance sqlite state), 1 vCPU / 2 GB, scale-to-zero. Pulls `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `RESEND_API_KEY`, and `LANGFUSE_SECRET_KEY` from Secret Manager.
+- **Secret Manager** — four secrets, accessible only to the runtime service account.
+- **Runtime service account** — least-privilege: `secretAccessor` on each secret, `logging.logWriter` + `cloudtrace.agent` on the project. Nothing else.
 - **Workload Identity Federation** — lets the `main` branch of a specific GitHub repo impersonate a deploy service account without a JSON key in the repo. Feature branches and forks cannot.
 
 Email settings (`EMAIL_PROVIDER`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_OVERRIDE_TO`, `INSURER_NAME`) are plain Cloud Run env vars, configurable via the `email_*` variables in `terraform.tfvars`. Defaults match the local `.env.example`.
+
+Observability: `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_HOST` are plain env vars set via `langfuse_public_key` / `langfuse_host` in `terraform.tfvars`; the paired `LANGFUSE_SECRET_KEY` lives in Secret Manager. Leave the public key blank to disable Langfuse tracing. GCP Cloud Trace auto-captures HTTP + node spans when running on Cloud Run; no extra config needed.
 
 The Vercel side is configured manually (one-time): connect the repo on the Vercel dashboard and set `NEXT_PUBLIC_API_URL` to the Cloud Run URL printed by `terraform output api_url`.
 

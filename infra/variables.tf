@@ -66,6 +66,18 @@ variable "insurer_name" {
   description = "Insurer name used in email body and decision letters."
 }
 
+variable "langfuse_public_key" {
+  type        = string
+  default     = ""
+  description = "Langfuse public key. Non-secret (paired with the secret key in Secret Manager). Leave blank to disable Langfuse tracing."
+}
+
+variable "langfuse_host" {
+  type        = string
+  default     = "https://cloud.langfuse.com"
+  description = "Langfuse host. Defaults to Langfuse Cloud; override for self-hosted."
+}
+
 variable "labels" {
   type = map(string)
   default = {

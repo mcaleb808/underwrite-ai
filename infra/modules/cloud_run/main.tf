@@ -62,6 +62,14 @@ resource "google_cloud_run_v2_service" "this" {
         name  = "INSURER_NAME"
         value = var.insurer_name
       }
+      env {
+        name  = "LANGFUSE_PUBLIC_KEY"
+        value = var.langfuse_public_key
+      }
+      env {
+        name  = "LANGFUSE_HOST"
+        value = var.langfuse_host
+      }
 
       dynamic "env" {
         for_each = var.secret_env

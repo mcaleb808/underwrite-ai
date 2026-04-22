@@ -10,7 +10,8 @@ from src.config import settings
 from src.graph.state import UnderwritingState
 from src.schemas.decision import Critique
 from src.schemas.events import CriticError, CriticReviewed, CriticSkipped
-from src.services.log import bind_node, get_logger, llm_observability
+from src.services.log import bind_node, get_logger, llm_callbacks
+from src.services.tracing import tracer
 
 log = get_logger(__name__)
 
@@ -34,7 +35,7 @@ def _llm() -> ChatOpenAI:
         base_url=settings.OPENROUTER_BASE_URL,
         temperature=0,
         timeout=60,
-        callbacks=[llm_observability],
+        callbacks=llm_callbacks(),
     )
 
 
@@ -60,63 +61,64 @@ def _format_draft(state: UnderwritingState) -> str:
 
 def run(state: UnderwritingState) -> dict[str, Any]:
     bind_node(state, "critic")
-    draft = state.get("decision")
-    if draft is None:
-        log.info("node_end", status="skipped", reason="no draft")
-        return {
-            "needs_revision": False,
-            "revision_count": state.get("revision_count", 0) + 1,
-            "events": [CriticSkipped(reason="no draft")],
-        }
+    with tracer().start_as_current_span("node.critic"):
+        draft = state.get("decision")
+        if draft is None:
+            log.info("node_end", status="skipped", reason="no draft")
+            return {
+                "needs_revision": False,
+                "revision_count": state.get("revision_count", 0) + 1,
+                "events": [CriticSkipped(reason="no draft")],
+            }
 
-    structured = (
-        _llm()
-        .with_structured_output(Critique)
-        .with_retry(stop_after_attempt=2, wait_exponential_jitter=True)
-    )
-    try:
-        llm_critique = structured.invoke(
-            [SystemMessage(content=SYSTEM), HumanMessage(content=_format_draft(state))]
+        structured = (
+            _llm()
+            .with_structured_output(Critique)
+            .with_retry(stop_after_attempt=2, wait_exponential_jitter=True)
         )
-    except Exception as exc:
-        log.error("node_end", status="failed", error=repr(exc))
-        return {
-            "needs_revision": False,
-            "revision_count": state.get("revision_count", 0) + 1,
-            "events": [CriticError(error=repr(exc))],
-        }
-
-    regex_issues = rw_adapter.fairness_checks(draft, state["applicant"])
-    issues = list(llm_critique.issues) + regex_issues
-    bias_flag = llm_critique.bias_flag or bool(regex_issues)
-    needs_revision = llm_critique.needs_revision or bool(regex_issues)
-
-    merged = Critique(
-        issues=issues,
-        suggestions=list(llm_critique.suggestions),
-        needs_revision=needs_revision,
-        bias_flag=bias_flag,
-    )
-
-    log.info(
-        "node_end",
-        status="done",
-        issue_count=len(issues),
-        regex_issue_count=len(regex_issues),
-        bias_flag=bias_flag,
-        needs_revision=needs_revision,
-    )
-
-    return {
-        "critique": merged,
-        "needs_revision": needs_revision,
-        "revision_count": state.get("revision_count", 0) + 1,
-        "events": [
-            CriticReviewed(
-                issue_count=len(issues),
-                bias_flag=bias_flag,
-                needs_revision=needs_revision,
-                regex_issue_count=len(regex_issues),
+        try:
+            llm_critique = structured.invoke(
+                [SystemMessage(content=SYSTEM), HumanMessage(content=_format_draft(state))]
             )
-        ],
-    }
+        except Exception as exc:
+            log.error("node_end", status="failed", error=repr(exc))
+            return {
+                "needs_revision": False,
+                "revision_count": state.get("revision_count", 0) + 1,
+                "events": [CriticError(error=repr(exc))],
+            }
+
+        regex_issues = rw_adapter.fairness_checks(draft, state["applicant"])
+        issues = list(llm_critique.issues) + regex_issues
+        bias_flag = llm_critique.bias_flag or bool(regex_issues)
+        needs_revision = llm_critique.needs_revision or bool(regex_issues)
+
+        merged = Critique(
+            issues=issues,
+            suggestions=list(llm_critique.suggestions),
+            needs_revision=needs_revision,
+            bias_flag=bias_flag,
+        )
+
+        log.info(
+            "node_end",
+            status="done",
+            issue_count=len(issues),
+            regex_issue_count=len(regex_issues),
+            bias_flag=bias_flag,
+            needs_revision=needs_revision,
+        )
+
+        return {
+            "critique": merged,
+            "needs_revision": needs_revision,
+            "revision_count": state.get("revision_count", 0) + 1,
+            "events": [
+                CriticReviewed(
+                    issue_count=len(issues),
+                    bias_flag=bias_flag,
+                    needs_revision=needs_revision,
+                    regex_issue_count=len(regex_issues),
+                )
+            ],
+        }

@@ -165,6 +165,16 @@ llm_observability = LLMObservability()
 configure()
 
 
+def llm_callbacks() -> list[BaseCallbackHandler]:
+    """Callbacks every ChatOpenAI in a node should receive."""
+    callbacks: list[BaseCallbackHandler] = [llm_observability]
+    if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
+        from langfuse.langchain import CallbackHandler
+
+        callbacks.append(CallbackHandler())
+    return callbacks
+
+
 __all__ = [
     "LLMObservability",
     "bind",
@@ -172,6 +182,7 @@ __all__ = [
     "clear",
     "configure",
     "get_logger",
+    "llm_callbacks",
     "llm_observability",
     "unbind",
 ]
