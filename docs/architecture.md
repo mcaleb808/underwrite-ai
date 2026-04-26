@@ -18,12 +18,12 @@ In scope:
 - Human-in-the-loop modify / approve / re-evaluate workflow with email
   delivery via a swappable provider.
 
-Out of scope (for the capstone):
+Out of scope today:
 
-- Production deployment, multi-tenant auth, billing, real PHI handling.
-- Database migrations (we use `Base.metadata.create_all` on startup; an
-  Alembic baseline is the natural follow-up).
-- A custom application form (the dashboard runs five seed personas today).
+- Multi-tenant auth, billing, real PHI handling.
+- Database migrations — `Base.metadata.create_all` on startup; an Alembic
+  baseline is the natural follow-up.
+- A custom application form — the dashboard runs five seed personas today.
 
 ## System view
 
@@ -71,6 +71,22 @@ flowchart TB
 The orchestrator runs the graph asynchronously inside FastAPI's BackgroundTasks
 and persists each event the moment it arrives. The SSE endpoint replays history
 from SQLite first, then attaches to the in-process event_bus for live updates.
+
+## Design patterns
+
+Each pattern below is in use in the codebase today, with a stable seam for the obvious next iteration.
+
+| Pattern | Where | Why this shape |
+|---|---|---|
+| Region adapter (Protocol) | [`adapters/__init__.py`](../apps/api/src/adapters/__init__.py), [`adapters/rw.py`](../apps/api/src/adapters/rw.py) | Country-specific rules (extra factors, fairness checks, evidence tiering) live behind a stable seam. Adding a second region is one new implementor, not a fork. |
+| Email provider (Protocol + factory) | [`services/email/providers.py`](../apps/api/src/services/email/providers.py) | Console, Resend, and a fake test double swap by config. Consumers depend on the Protocol; tests inject the fake. |
+| Reducer-based append-only state | [`graph/state.py`](../apps/api/src/graph/state.py) | `parsed_medical`, `events`, `errors`, `messages` use the `add` reducer so parallel branches contribute without overwriting. Everything else overwrites — the simpler default. |
+| In-process pub/sub event bus | [`services/event_bus.py`](../apps/api/src/services/event_bus.py) | One `asyncio.Queue` per subscriber with `maxsize=256`; slow consumers drop events rather than block the producer. Pluggable seam for Redis when multi-worker shows up. |
+| SSE replay-then-live | [`routes/applications.py`](../apps/api/src/routes/applications.py) (`/events`) | The route streams persisted history first, then attaches to the live bus. A client joining mid-run sees the full timeline; finished tasks get a `closed` sentinel. |
+| Background-task orchestration | [`services/orchestrator.py`](../apps/api/src/services/orchestrator.py) | The HTTP request returns immediately with the task id; the graph runs in a `BackgroundTask`. Cancellation is cooperative via a per-task `asyncio.Event`. |
+| Deterministic guard rails | [`adapters/rw.py`](../apps/api/src/adapters/rw.py) (regex bias backstop), [`tools/risk_scoring.py`](../apps/api/src/tools/risk_scoring.py) (pure-Python scoring), [`graph/routing.py`](../apps/api/src/graph/routing.py) (revision cap), [`graph/nodes/guidelines_rag.py`](../apps/api/src/graph/nodes/guidelines_rag.py) (pinned rules) | Where the LLM is the assistant rather than the judge. Each adverse path has a deterministic check that the LLM cannot override. |
+
+The deeper rationale for each — and the explicit tradeoffs taken — is in the [Tradeoffs](#tradeoffs) table at the bottom of this doc.
 
 ## The state contract
 
