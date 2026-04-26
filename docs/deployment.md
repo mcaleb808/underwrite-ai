@@ -1,6 +1,8 @@
 # Deployment
 
-The system runs on two managed platforms: the FastAPI backend on **GCP Cloud Run**, the Next.js frontend on **Vercel**. All GCP infrastructure is Terraform-managed, scale-to-zero by default, and `terraform destroy` is a clean path. The deploy story is reproducible end-to-end from a fresh GCP project.
+The system runs in two places: the AI backend on **GCP Cloud Run**, the dashboard on **Vercel**. Everything Google-side is described in Terraform, scales to zero when nobody's using it, and can be torn down cleanly with one command. The story is meant to be reproducible end-to-end from a fresh GCP project.
+
+This page is a quick tour of what runs where, how the deploy pipeline works, and what each Terraform module does.
 
 ```mermaid
 flowchart LR
@@ -12,33 +14,47 @@ flowchart LR
   DeployWeb -- vercel CLI --> Vercel["Vercel deploy<br/>(production)"]
 ```
 
+---
+
 ## Backend — Cloud Run
 
-[`apps/api/Dockerfile`](../apps/api/Dockerfile) is a multi-stage build with `uv` for dependency resolution and the seed medical PDFs baked into the image so the container is self-contained at boot. Runtime: slim Python image, `tini` as PID 1, non-root app user, `PORT=8080`.
+The API is packaged as a Docker image. The build is multi-stage: one stage installs Python dependencies with `uv`, the next stage copies just what's needed into a slim runtime image. The seed medical PDFs are baked into the image at build time so the container is self-contained on boot. Runtime: `tini` as PID 1, a non-root user, listening on `PORT=8080`.
 
-The deploy workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) authenticates to GCP via **Workload Identity Federation** (no long-lived service-account keys), builds and pushes the image to Artifact Registry, and rolls a new Cloud Run revision. Secrets are read from GCP Secret Manager at container start — never committed, never pasted into CI variables.
+📁 [`apps/api/Dockerfile`](../apps/api/Dockerfile)
 
-**Cost posture.** `min_instances=0` and `cpu_idle=true` mean the service scales to zero between runs. Cold start adds ~3-6 s on the first request after idle; the tradeoff is zero idle cost. For demo purposes that's the right shape.
+The deploy workflow ([`deploy.yml`](../.github/workflows/deploy.yml)) does three things on every push to `main`:
+
+1. authenticates to GCP using **Workload Identity Federation** — no long-lived service-account keys ever leave GitHub;
+2. builds the image and pushes it to Artifact Registry;
+3. rolls a new Cloud Run revision and shifts 100% of traffic to it.
+
+Secrets (LLM keys, Langfuse keys, etc.) are pulled from **GCP Secret Manager** at container start. They're never committed to the repo, never pasted into CI variables, and never written to the Terraform state file in plaintext (the runtime SA gets accessor IAM, not the secret values).
+
+### Cost posture: zero when idle
+
+The Cloud Run service is configured with `min_instances=0` and `cpu_idle=true`. Translation: when nobody's using it, no instances are running and you pay nothing. The first request after an idle period does pay a cold-start tax of ~3-6 seconds while a fresh instance boots. For a system intended for occasional, deliberate review sessions, that's the right tradeoff — pay for compute when underwriters are working, not at 3 a.m.
+
+---
 
 ## Frontend — Vercel
 
-The Next.js 16 app deploys via [`.github/workflows/deploy-web.yml`](../.github/workflows/deploy-web.yml) using the Vercel CLI and a project-scoped token. `NEXT_PUBLIC_API_URL` is configured in Vercel and baked into the build, so the browser knows where to hit the API.
+The Next.js dashboard deploys via [`deploy-web.yml`](../.github/workflows/deploy-web.yml). It uses a project-scoped Vercel token, runs `vercel deploy --prod`, and that's the whole story. The browser knows where to hit the API because `NEXT_PUBLIC_API_URL` is set in Vercel's project settings and baked into the build.
+
+---
 
 ## Infra-as-code
 
-Terraform sources are in [`infra/`](../infra/). Five composable modules:
+All GCP resources are declared in Terraform. The root config is [`infra/main.tf`](../infra/main.tf); the modules are under [`infra/modules/`](../infra/modules/):
 
-| Module | Purpose |
-|---|---|
-| [`modules/artifact_registry`](../infra/modules/artifact_registry/) | Docker repository for the API image |
-| [`modules/service_account`](../infra/modules/service_account/) | Cloud Run runtime SA + IAM (Secret Manager accessor, Cloud Trace agent) |
-| [`modules/wif`](../infra/modules/wif/) | Workload Identity Federation pool + provider for GitHub Actions |
-| [`modules/secrets`](../infra/modules/secrets/) | Secret Manager entries (LLM keys, Langfuse keys, etc.) |
-| [`modules/cloud_run`](../infra/modules/cloud_run/) | The Cloud Run service, env, secrets binding, and IAM |
+| Module | Purpose | What it owns |
+|---|---|---|
+| `artifact_registry` | the Docker repo | one private repository for the API image |
+| `service_account` | the Cloud Run runtime identity | a dedicated SA + IAM for Secret Manager and Cloud Trace |
+| `wif` | GitHub Actions ↔ GCP trust | a Workload Identity Federation pool + provider, scoped to this one repo |
+| `secrets` | application secrets | LLM keys, Langfuse keys; values supplied locally, never committed |
+| `cloud_run` | the API service itself | the Cloud Run service, env vars, secret bindings, public IAM |
 
-Root module [`infra/main.tf`](../infra/main.tf) enables the GCP APIs (`run.googleapis.com`, `secretmanager.googleapis.com`, `cloudtrace.googleapis.com`, …), instantiates the modules in dependency order, and emits the GitHub Actions secrets needed by the deploy workflows. State lives in a versioned GCS bucket configured via `infra/.backend-config`.
-
-Standard loop:
+State lives in a versioned GCS bucket, configured via `infra/.backend-config`. Standard loop:
 
 ```bash
 cd infra
@@ -47,16 +63,16 @@ terraform plan
 terraform apply
 ```
 
-For tear-down, `terraform destroy` removes everything Terraform created — Cloud Run service, secrets, IAM bindings, the SA, the WIF pool, the Artifact Registry repository, and the API enablements that were toggled on by this stack.
+For tear-down, `terraform destroy` removes everything Terraform created — the Cloud Run service, the secrets, the IAM bindings, the SA, the WIF pool, the Artifact Registry repository, even the GCP API enablements that were toggled on by this stack. There are no manual steps in either direction.
 
-## Secrets
-
-All sensitive config is read from `apps/api/.env` locally (gitignored) and from GCP Secret Manager in production. The Cloud Run module wires the relevant secrets into the runtime environment by reference (`secret_key_ref`), not by value, so they never appear in Terraform state plaintext.
+---
 
 ## Eval pipeline
 
-[`.github/workflows/eval.yml`](../.github/workflows/eval.yml) is a manual-dispatch workflow that runs the golden-case suite against the deployed configuration and uploads `docs/eval-report.md` as a build artifact. See [`docs/evaluation.md`](evaluation.md) for what each case asserts.
+[`eval.yml`](../.github/workflows/eval.yml) is a manual-dispatch workflow that runs the golden-case suite against the deployed configuration and uploads `docs/eval-report.md` as a build artifact. See [`docs/evaluation.md`](evaluation.md) for what each case asserts.
 
-## Observability in deploy
+---
 
-Tracing wires up automatically when `K_SERVICE` is set (Cloud Run) and the relevant Langfuse env vars are present — see [`docs/observability.md`](observability.md). The Cloud Trace exporter is gated on the `K_SERVICE` env var so local dev doesn't try to ship spans to GCP.
+## Observability in production
+
+When the API boots on Cloud Run (detected via the `K_SERVICE` env var), tracing wires itself up automatically — OpenTelemetry exports HTTP spans to GCP Cloud Trace, and Langfuse callbacks (if keys are present) ship LLM traces to Langfuse Cloud. Locally, you don't need GCP configured at all; the tracing setup is gated on the env var, so local dev only ships traces if you've explicitly opted in. See [`docs/observability.md`](observability.md) for the full story.

@@ -41,7 +41,7 @@ flowchart TB
     Bus[in-process event_bus]
   end
 
-  subgraph graph["LangGraph pipeline"]
+  subgraph pipeline["LangGraph pipeline"]
     DP[doc_parser]
     RA[risk_assessor]
     RAG[guidelines_rag]
@@ -59,7 +59,7 @@ flowchart TB
   Detail -- "GET /events (SSE)" --> Apps
   Detail -- "PATCH /decision · POST /approve · /reeval" --> Apps
   Apps -- BackgroundTask --> Orch
-  Orch -- astream(updates) --> graph
+  Orch -- "astream(updates)" --> DP
   RAG --> Chroma
   Orch --> Bus
   Bus -- per-task queue --> Apps

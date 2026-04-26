@@ -1,46 +1,62 @@
 # Observability
 
-Three layers, each independently useful: structured logs at the request level, LLM tracing of the agent graph, and operational health/metrics endpoints for liveness probes and at-a-glance counters.
+When something goes wrong in production, you need three things: **logs to read, traces to follow, and counters to glance at**. This page explains how each one is set up and what you'd look at when.
 
-## Structured logging
+In one line: every request gets a unique ID that follows it through every log line and every AI call, the AI calls themselves are recorded as nested traces in Langfuse, and there are two endpoints (`/health` and `/metrics`) to check whether everything is alive and what it has been doing.
 
-[`apps/api/src/services/log.py`](../apps/api/src/services/log.py) configures `structlog` with `contextvars.merge_contextvars` so any field bound at the request boundary appears on every downstream log line. Output is JSON; stdlib loggers (uvicorn, sqlalchemy) are routed through the same renderer.
+---
 
-Request-ID propagation sits in [`apps/api/src/middleware/request_id.py`](../apps/api/src/middleware/request_id.py). Every request is stamped with `X-Request-ID` (echoed in the response header) and bound to the structlog context for the duration of the request — so a single log query by `request_id` returns the full trail across the route, the orchestrator, and every node it ran.
+## Logs you can actually grep
 
-Each LLM call also emits an `llm_call` log entry with `model`, `latency_ms`, prompt/completion/total tokens, and (via [`services/cost.py`](../apps/api/src/services/cost.py)) an estimated USD cost. The same data feeds the `/metrics` counters.
+Logs are emitted as JSON, one event per line. That sounds bureaucratic but it's the right shape: you can pipe them into any log viewer, filter by field, and the structure stays intact. The setup lives in [`services/log.py`](../apps/api/src/services/log.py).
 
-## LLM tracing
+The most useful trick: **every request is given an `X-Request-ID` header on the way in, and that ID is bound to the log context**. So every log line emitted while handling that request — the route, the orchestrator, every agent in the graph — automatically carries the same `request_id`. To debug a complaint like "this case looks wrong", grab the request ID from the response header and search for it; you get the entire timeline for that one user.
 
-[`apps/api/src/services/tracing.py`](../apps/api/src/services/tracing.py) wires up OpenTelemetry once on startup:
+📁 [`apps/api/src/middleware/request_id.py`](../apps/api/src/middleware/request_id.py)
 
-- a `TracerProvider` for the `underwrite-api` service;
-- when `K_SERVICE` is set (Cloud Run), a `BatchSpanProcessor` exporting to GCP Cloud Trace via `opentelemetry-exporter-gcp-trace`;
-- when `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` are set, the Langfuse SDK shares the same `TracerProvider` so LangChain callback spans land in Langfuse Cloud as one nested trace tree;
-- FastAPI auto-instrumentation when an `app` is provided.
+Each LLM call also emits its own log line with the model name, latency in ms, prompt/completion/total tokens, and an estimated USD cost. That's the same data feeding the token+cost pill you see in the dashboard, and the same data behind `/metrics`.
 
-Langfuse callbacks are attached at the **graph** level (not per-LLM) in [`services/log.py`](../apps/api/src/services/log.py) `graph_callbacks()` and threaded into the graph via `config["callbacks"]` in the orchestrator. That single placement is what makes each underwriting run nest as one trace with five child node spans, each with its LLM children, tokens, and cost.
+---
 
-The orchestrator also opens a manual `underwriting.run` span around each task with `langfuse.session.id`, `langfuse.user.id`, `underwriting.task_id`, and (on completion) verdict / risk_band / risk_score / revision_count attributes — see [`services/orchestrator.py`](../apps/api/src/services/orchestrator.py). The eval runner does the same with `underwriting.eval=true` so eval traces are filterable in Langfuse.
+## Traces — what the AI did, in order
 
-**Honest caveat.** On Cloud Run, LangChain callback spans fired inside FastAPI's `BackgroundTask` context are silenced before any OTel processor sees them — a known interaction between LangChain's callback context propagation and the OTel + Background-task combination. Synchronous spans on the same provider export fine. Local development against Langfuse Cloud shows the full nested timeline; the deployed environment is silent for callback spans. The local trace is the source of truth for the agent timeline today.
+For the AI side, Langfuse Cloud is the trace backend. Each underwriting run shows up as **one trace tree** with nested children for each agent and each LLM call within that agent. You see the prompts, the responses, the tokens, the latency, and (with Langfuse's pricing data) a cost estimate per call.
 
-## Health and metrics
+The setup ([`services/tracing.py`](../apps/api/src/services/tracing.py)) is small:
 
-Both endpoints live in [`apps/api/src/routes/health.py`](../apps/api/src/routes/health.py).
+- spin up an OpenTelemetry `TracerProvider`;
+- if `K_SERVICE` is set (i.e. we're on Cloud Run), also export to GCP Cloud Trace;
+- if Langfuse keys are set, the Langfuse SDK shares the same tracer so its callback spans land in Langfuse Cloud as one tree;
+- auto-instrument FastAPI so every HTTP request gets its own span.
 
-**`GET /api/v1/health`** — liveness probe. Reports `status` (`ok` / `degraded`) plus per-dependency state for the DB (`SELECT 1`), Chroma (`count() > 0`), and the LLM provider (`OPENROUTER_API_KEY` configured).
+The trick that makes it nest cleanly is attaching the Langfuse callback at the **graph** level, not per-LLM. That single placement is what makes "five agents, with their LLM children, in one tree" possible.
+
+> **Honest caveat.** This works beautifully *locally*. On Cloud Run, AI-call spans fired inside FastAPI's `BackgroundTasks` context are silenced before any exporter sees them — a known interaction between LangChain's callback context and the OTel SDK in that specific runtime combination. Synchronous spans on the same provider export fine. Local Langfuse traces remain the source of truth for the agent timeline today.
+
+---
+
+## `/health` and `/metrics`
+
+Two endpoints, both in [`routes/health.py`](../apps/api/src/routes/health.py).
+
+### `GET /api/v1/health`
+
+Quick liveness check — meant for an uptime monitor or a Cloud Run probe. Returns one of `ok` or `degraded` overall, plus the state of each dependency:
 
 ```json
 {
   "status": "ok",
-  "db": "ok",
+  "db":     "ok",
   "chroma": "ok",
   "llm_provider": "configured"
 }
 ```
 
-**`GET /api/v1/metrics`** — at-a-glance counters since the last process restart.
+If the DB is unreachable, Chroma is empty, or the LLM API key is missing, you'll see `degraded`.
+
+### `GET /api/v1/metrics`
+
+A small, human-readable dashboard of "what has this process been doing since it started":
 
 ```json
 {
@@ -53,8 +69,17 @@ Both endpoints live in [`apps/api/src/routes/health.py`](../apps/api/src/routes/
 }
 ```
 
-Token + cost counters are sourced from the in-memory `LLMObservability` callback in [`services/log.py`](../apps/api/src/services/log.py) — the same callback that tags every node's LLM call with `model`, `latency_ms`, and `total_tokens`. The same numbers drive the token/cost pill in the dashboard.
+The token + cost numbers come from the same in-memory counter that records every LLM call. Restart the process and these reset to zero — they're for at-a-glance sanity, not long-term billing.
 
-## Live event stream
+---
 
-A separate observability surface aimed at the human in the loop, not at oncall: every node emits a typed event (`DocParserParsed`, `DecisionDrafted`, `CriticReviewed`, ...) that the orchestrator persists to SQLite *and* publishes to an in-process pub/sub bus ([`services/event_bus.py`](../apps/api/src/services/event_bus.py)). The browser consumes both — DB replay first, then live tail via SSE — so a reviewer joining mid-run still sees every step. See [`docs/architecture.md`](architecture.md) for the sequence diagram.
+## Live event stream (the human-facing observability)
+
+Separate from the production-ops surface above, there's a live event stream aimed at the underwriter watching a case run. Every agent emits a typed event the moment it finishes a step — `DocParserParsed`, `DecisionDrafted`, `CriticReviewed`, etc. — and those events land in two places at once:
+
+- **persisted to SQLite**, so they survive a restart and the timeline is always replayable;
+- **published to an in-process pub/sub bus** ([`services/event_bus.py`](../apps/api/src/services/event_bus.py)), which the dashboard subscribes to via Server-Sent Events.
+
+When you open a case mid-run in the dashboard, the route first replays history from SQLite (so you don't miss anything that already happened), then attaches to the live stream to see new events arrive in real time. The sequence diagram is in [`docs/architecture.md`](architecture.md#live-event-streaming).
+
+This is the single most useful debugging tool for "the AI made a weird call" — you can see, step by step, exactly what each agent thought and did.
