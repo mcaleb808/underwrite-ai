@@ -356,14 +356,28 @@ async def cancel_task(
     task_id: str,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict[str, str]:
-    """Signal a running task to stop after its current node finishes."""
+    """Signal a running task to stop. Force-cancels orphans (no live worker)."""
     task = (await session.execute(select(Task).where(Task.task_id == task_id))).scalar_one_or_none()
     if task is None:
         raise TaskNotFoundError(task_id)
     if task.status not in {TaskStatus.queued, TaskStatus.running, TaskStatus.reeval}:
         raise InvalidStateTransitionError(f"cannot cancel from status {task.status.value}")
-    request_cancel(task_id)
-    return {"status": "cancelling"}
+    if request_cancel(task_id):
+        return {"status": "cancelling"}
+    # Orphan path. Single-process assumption: a sibling pod could be running it.
+    cancel_evt = OrchestratorError(error="cancelled by user")
+    session.add(
+        Event(
+            task_id=task_id,
+            node="orchestrator",
+            event_type="error",
+            payload=json.dumps(cancel_evt.model_dump(), default=str),
+        )
+    )
+    task.status = TaskStatus.cancelled
+    await session.commit()
+    await event_bus.publish(task_id, cancel_evt.model_dump())
+    return {"status": "cancelled"}
 
 
 @router.delete("/{task_id}", status_code=204)
