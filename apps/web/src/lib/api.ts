@@ -161,9 +161,12 @@ export async function reevaluate(
   return res.json();
 }
 
-export async function cancelApplication(taskId: string): Promise<void> {
+export async function cancelApplication(
+  taskId: string,
+): Promise<{ status: "cancelling" | "cancelled" }> {
   const res = await fetch(`${API}/api/v1/applications/${taskId}/cancel`, { method: "POST" });
   if (!res.ok) throw new Error(`failed to cancel: ${res.status} ${await res.text()}`);
+  return res.json();
 }
 
 export async function deleteApplication(taskId: string): Promise<void> {

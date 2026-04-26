@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 import { ConfirmDialog, type ConfirmOptions } from "./ConfirmDialog";
 import { type Toast, Toaster, type ToastTone } from "./Toaster";
@@ -20,11 +20,15 @@ export function useConfirm(): ConfirmFn {
 export function useToast() {
   const push = useContext(ToastContext);
   if (!push) throw new Error("useToast must be used within <UiProvider>");
-  return {
-    success: (message: string) => push("success", message),
-    error: (message: string) => push("error", message),
-    info: (message: string) => push("info", message),
-  };
+  // Stable identity so consumers' effect deps don't churn every render.
+  return useMemo(
+    () => ({
+      success: (message: string) => push("success", message),
+      error: (message: string) => push("error", message),
+      info: (message: string) => push("info", message),
+    }),
+    [push],
+  );
 }
 
 export function UiProvider({ children }: { children: React.ReactNode }) {

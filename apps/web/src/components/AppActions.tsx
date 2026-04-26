@@ -43,9 +43,13 @@ export function AppActions({
     if (!ok) return;
     setWorking("stop");
     try {
-      await cancelApplication(status.task_id);
+      const result = await cancelApplication(status.task_id);
       onCancelRequested();
-      toast.info("Stopping the pipeline - the current step will finish first.");
+      if (result.status === "cancelled") {
+        toast.success("Pipeline cancelled.");
+      } else {
+        toast.info("Stopping the pipeline after the current step.");
+      }
     } catch (err) {
       toast.error(`Couldn't stop the pipeline: ${String(err)}`);
     } finally {

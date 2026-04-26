@@ -140,6 +140,17 @@ export function buildStepStates(events: LiveEvent[]): {
   finalized: boolean;
   failed: boolean;
 } {
+  // SSE replays history on reconnect; only score the latest run.
+  let runStart = 0;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (ev?.node === "orchestrator" && ev.type === "started") {
+      runStart = i;
+      break;
+    }
+  }
+  const currentEvents = events.slice(runStart);
+
   const grouped: Record<StepKey, LiveEvent[]> = {
     doc_parser: [],
     risk_assessor: [],
@@ -151,7 +162,7 @@ export function buildStepStates(events: LiveEvent[]): {
   let finalized = false;
   let failed = false;
 
-  for (const ev of events) {
+  for (const ev of currentEvents) {
     if (ev.node === "orchestrator") {
       if (ev.type === "finalized" || ev.type === "closed") finalized = true;
       if (ev.type === "error") failed = true;
@@ -162,8 +173,8 @@ export function buildStepStates(events: LiveEvent[]): {
 
   let activeKey: StepKey | null = null;
   if (!finalized) {
-    for (let i = events.length - 1; i >= 0; i--) {
-      const ev = events[i];
+    for (let i = currentEvents.length - 1; i >= 0; i--) {
+      const ev = currentEvents[i];
       if (ev?.node && ev.node !== "orchestrator" && (ev.node as StepKey) in grouped) {
         activeKey = ev.node as StepKey;
         break;

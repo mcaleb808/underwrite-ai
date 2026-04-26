@@ -183,3 +183,32 @@ def test_cancel_rejects_terminal_status(
 
 def test_cancel_missing_task_returns_404(client: TestClient) -> None:
     assert client.post("/api/v1/applications/ghost/cancel").status_code == 404
+
+
+def test_cancel_force_cancels_orphan_task(
+    client: TestClient, session_factory: async_sessionmaker
+) -> None:
+    from src.services import orchestrator
+
+    _seed(session_factory, "t-orphan", status=TaskStatus.running, with_decision=False)
+    orchestrator._cancel_events.pop("t-orphan", None)
+
+    response = client.post("/api/v1/applications/t-orphan/cancel")
+    assert response.status_code == 202
+    assert response.json() == {"status": "cancelled"}
+
+    async def fetch() -> tuple[TaskStatus, list[tuple[str, str]]]:
+        async with session_factory() as session:
+            task = (
+                await session.execute(select(Task).where(Task.task_id == "t-orphan"))
+            ).scalar_one()
+            events = (
+                await session.execute(
+                    select(Event.node, Event.event_type).where(Event.task_id == "t-orphan")
+                )
+            ).all()
+            return task.status, [(n, t) for n, t in events]
+
+    status, events = asyncio.get_event_loop().run_until_complete(fetch())
+    assert status is TaskStatus.cancelled
+    assert ("orchestrator", "error") in events
