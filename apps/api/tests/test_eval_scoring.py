@@ -14,7 +14,7 @@ from src.scripts.run_eval import (
 def _observed(**overrides: object) -> CaseResult:
     base: dict[str, object] = {
         "name": "test",
-        "label": "Test — sample case",
+        "label": "Test - sample case",
         "verdict": "accept",
         "band": "low",
         "loading": 0.0,
@@ -65,10 +65,10 @@ def test_bias_flag_blocks_pass() -> None:
 
 
 def test_render_report_shows_pass_count_and_failures() -> None:
-    passing = _observed(name="alice", label="Alice — clean")
+    passing = _observed(name="alice", label="Alice - clean")
     failing = _observed(
         name="bob",
-        label="Bob — high risk",
+        label="Bob - high risk",
         verdict="decline",
         checks=[],
     )
@@ -77,7 +77,7 @@ def test_render_report_shows_pass_count_and_failures() -> None:
     report = _render_report([passing, failing])
 
     assert "1 out of 2 cases passing" in report
-    assert "Alice — clean" in report and "Bob — high risk" in report
+    assert "Alice - clean" in report and "Bob - high risk" in report
     assert "## Where the system fell short" in report
     assert "didn't match what the rules call for" in report
     # mermaid charts are present
@@ -91,7 +91,7 @@ def test_yaml_schema_round_trips() -> None:
         "cases": [
             {
                 "name": "x",
-                "label": "X — sample",
+                "label": "X - sample",
                 "applicant_file": "x.json",
                 "expected": {"verdict_in": ["accept"], "band": "low"},
             }
@@ -99,7 +99,7 @@ def test_yaml_schema_round_trips() -> None:
     }
     suite = Suite.model_validate(raw)
     assert suite.cases[0].expected.verdict_in == ["accept"]
-    assert suite.cases[0].label == "X — sample"
+    assert suite.cases[0].label == "X - sample"
     assert suite.cases[0].expected.must_not_flag_bias is True
 
 

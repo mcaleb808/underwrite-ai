@@ -1,4 +1,4 @@
-"""Domain exceptions — never raise HTTPException outside of routes."""
+"""Domain exceptions - never raise HTTPException outside of routes."""
 
 
 class UnderwriteError(Exception):

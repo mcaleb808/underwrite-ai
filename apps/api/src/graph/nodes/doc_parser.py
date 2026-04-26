@@ -21,7 +21,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 SYSTEM = (
     "You extract structured clinical facts from medical PDFs into JSON matching the"
     " ParsedMedicalRecord schema. Copy values verbatim where possible. If a field is"
-    " absent in the document, leave it empty — do not invent values. Lab `flag` must"
+    " absent in the document, leave it empty - do not invent values. Lab `flag` must"
     " be one of high|low|normal. Diagnosis `status` must be one of"
     " active|controlled|resolved when stated, otherwise null."
 )

@@ -17,7 +17,7 @@ from src.services.tracing import tracer
 
 log = get_logger(__name__)
 
-# Always present in the prompt — every decision is governed by these.
+# Always present in the prompt - every decision is governed by these.
 _PINNED_RULES = ("UW-070", "UW-090", "UW-130", "UW-140")
 
 

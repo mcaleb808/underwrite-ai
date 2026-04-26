@@ -1,4 +1,4 @@
-"""Route tests for /api/v1/applications — no LLM calls (orchestrator stubbed)."""
+"""Route tests for /api/v1/applications - no LLM calls (orchestrator stubbed)."""
 
 from __future__ import annotations
 

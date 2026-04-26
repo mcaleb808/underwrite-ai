@@ -1,4 +1,4 @@
-"""Unit tests for the seed-on-startup logic — no chromadb or openai calls."""
+"""Unit tests for the seed-on-startup logic - no chromadb or openai calls."""
 
 from pathlib import Path
 

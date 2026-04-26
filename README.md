@@ -3,7 +3,7 @@
 AI-assisted health insurance underwriting for the Rwandan market. A multi-agent
 LangGraph pipeline parses medical PDFs, scores risk against an underwriting
 manual, drafts a verdict with cited rules, and runs an adversarial fairness
-critic — then hands off to a human underwriter who can approve, modify, or
+critic - then hands off to a human underwriter who can approve, modify, or
 re-evaluate before an email goes out.
 
 This is an AI engineering bootcamp capstone. The goal is to demonstrate a
@@ -134,7 +134,7 @@ cd apps/api && uv run pytest -m slow         # slow suite (needs OPENAI_API_KEY)
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — state contract, agent
+- [`docs/architecture.md`](docs/architecture.md) - state contract, agent
   responsibilities, RAG strategy, persistence model, decision lifecycle,
   fairness backstop, and the key tradeoffs.
 

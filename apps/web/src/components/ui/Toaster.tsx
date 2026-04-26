@@ -57,7 +57,7 @@ function ToastItem({
 }) {
   const [visible, setVisible] = useState(false);
   // Stash the latest onDismiss so the dismiss timer arms exactly once per
-  // toast — a new onDismiss identity from the parent must not reset it.
+  // toast - a new onDismiss identity from the parent must not reset it.
   const dismissRef = useRef(onDismiss);
   useEffect(() => {
     dismissRef.current = onDismiss;

@@ -104,7 +104,7 @@ class OrchestratorClosed(_BaseEvent):
 
 
 NodeEvent = Annotated[
-    Union[  # noqa: UP007 — Annotated needs an explicit Union
+    Union[  # noqa: UP007 - Annotated needs an explicit Union
         DocParserParsed,
         RiskAssessorScored,
         GuidelinesRetrieved,

@@ -14,8 +14,8 @@ log = get_logger(__name__)
 
 SYSTEM = """\
 You write the body of a customer-facing email from an insurance company to an
-applicant about an underwriting decision. Your output is what the customer reads
-— not internal documentation.
+applicant about an underwriting decision. Your output is what the customer reads,
+not internal documentation.
 
 Tone:
 - Warm, professional, empathetic, plain English
@@ -27,7 +27,7 @@ Hard prohibitions (the customer must NEVER see these):
 - Internal rule IDs of any kind (UW-010, UW-130, etc.)
 - The words "verdict", "score", "band", "loading", "draft", "critic", "evaluation"
 - The raw verdict string ("accept", "accept_with_conditions", "refer", "decline")
-  — translate to natural English
+  - translate to natural English
 - Any numeric premium percentage
 - The technical reasoning paragraph
 
@@ -86,9 +86,9 @@ def _fallback(reference: str, first_name: str, verdict: str) -> ComposedEmail:
         f"A member of our team will be in touch shortly with the full details.\n\n"
         f"If you have any questions in the meantime, please reply to this email or write to "
         f"{settings.EMAIL_REPLY_TO}.\n\n"
-        f"— {settings.INSURER_NAME}"
+        f"-- {settings.INSURER_NAME}"
     )
-    subject = f"{settings.INSURER_NAME} — {headline} ({reference})"
+    subject = f"{settings.INSURER_NAME} - {headline} ({reference})"
     return ComposedEmail(subject=subject, body=body)
 
 
@@ -105,7 +105,7 @@ def compose(reference: str, first_name: str, decision: DecisionDraft) -> Compose
         f"Insurer name: {settings.INSURER_NAME}\n"
         f"Reply-to address: {settings.EMAIL_REPLY_TO}\n"
         f"\n"
-        f"Decision verdict (for tone selection only — do not echo): {decision.verdict}\n"
+        f"Decision verdict (for tone selection only - do not echo): {decision.verdict}\n"
         f"Premium adjustment applies: {'yes' if has_premium_adjustment else 'no'}\n"
         f"\n"
         f"Conditions to communicate (rewrite each into plain customer language; "

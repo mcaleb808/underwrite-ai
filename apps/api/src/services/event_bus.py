@@ -6,7 +6,7 @@ producer signals completion via `close(task_id)`, every subscriber receives
 a sentinel `None` and exits.
 
 For multi-worker / multi-host deployments this can be swapped for a
-Redis pub/sub later — the publish/subscribe surface stays identical.
+Redis pub/sub later - the publish/subscribe surface stays identical.
 """
 
 from __future__ import annotations

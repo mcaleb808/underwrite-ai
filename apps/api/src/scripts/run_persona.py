@@ -3,7 +3,7 @@
 Usage:
     uv run python -m src.scripts.run_persona alice-kigali-clean
 
-Calls real LLMs via OpenRouter — costs ~$0.01/run with revisions.
+Calls real LLMs via OpenRouter - costs ~$0.01/run with revisions.
 """
 
 import json

@@ -43,6 +43,7 @@ htmlcov/
 IMPLEMENTATION_PLAN.md
 appendix/
 .claude/
+capstone-*.md
 
 # scratch
 .playwright-mcp/
