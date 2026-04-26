@@ -7,27 +7,23 @@ export default async function NewApplicationPage() {
   const districts = await listDistricts();
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
-      <header className="mb-8 flex items-baseline justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            New application
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Enter applicant details and (optionally) upload medical PDFs. The
-            multi-agent pipeline will run live and you can approve, modify, or
-            re-evaluate the verdict.
-          </p>
-        </div>
-        <Link
-          href="/"
-          className="text-xs text-zinc-500 underline-offset-2 hover:underline dark:text-zinc-400"
-        >
-          ← back
-        </Link>
-      </header>
+    <main className="mx-auto w-full max-w-[760px] flex-1 px-6 py-12 sm:px-10 sm:py-16">
+      <Link href="/" className="text-[12px] text-muted hover:text-ink">
+        ← All cases
+      </Link>
+      <h1 className="serif mt-3 text-[40px] leading-[1.0] tracking-[-0.02em] sm:text-[52px]">
+        Tell us about
+        <br />
+        the applicant.
+      </h1>
+      <p className="mt-3 max-w-[480px] text-[14px] leading-[1.55] text-muted">
+        Required fields are marked. Underwriter-only details are tucked behind a
+        toggle below.
+      </p>
 
-      <ApplicantForm districts={districts} />
+      <div className="mt-12">
+        <ApplicantForm districts={districts} />
+      </div>
     </main>
   );
 }

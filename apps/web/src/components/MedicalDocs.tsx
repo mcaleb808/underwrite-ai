@@ -14,25 +14,26 @@ export function MedicalDocs({ taskId }: { taskId: string }) {
   if (files.length === 0) return null;
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-      <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        Medical documents
-      </h2>
-      <ul className="space-y-1.5 text-sm">
+    <div className="rounded border border-line bg-paper px-5 py-4">
+      <div className="field-label mb-3">Medical documents</div>
+      <ul className="m-0 list-none space-y-2 p-0 text-[13px]">
         {files.map((name) => (
           <li key={name}>
             <a
               href={fileUrl(taskId, name)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-300"
+              className="inline-flex items-center gap-2.5 text-ink hover:text-accent"
             >
-              <span className="text-zinc-400">PDF</span>
-              {name}
+              <svg width="12" height="14" viewBox="0 0 12 14" fill="none" stroke="currentColor" strokeWidth="1.4">
+                <path d="M2 1h6l3 3v9H2z" />
+                <path d="M8 1v3h3" />
+              </svg>
+              <span className="truncate">{name}</span>
             </a>
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   );
 }

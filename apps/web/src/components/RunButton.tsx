@@ -28,12 +28,15 @@ export function RunButton({ personaId }: { personaId: string }) {
         type="button"
         onClick={onClick}
         disabled={loading}
-        className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        className="btn"
+        style={{ padding: "8px 14px", fontSize: 12 }}
       >
-        {loading ? "running…" : "run underwriting"}
+        {loading ? "Running…" : "Run →"}
       </button>
       {error ? (
-        <span className="text-xs text-red-600 dark:text-red-400">{error}</span>
+        <span className="text-[11px]" style={{ color: "var(--bad)" }}>
+          {error}
+        </span>
       ) : null}
     </div>
   );

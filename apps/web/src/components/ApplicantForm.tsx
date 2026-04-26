@@ -23,16 +23,15 @@ function slugify(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-// Deterministic 16-digit demo NID derived from name+dob.
-// Real Rwandan NIDs encode sex/year — for the demo we just need 16 digits.
+// Demo NID is derived from name+DOB so seed personas resolve to a stable
+// 16-digit value without collecting real PII. Real Rwandan NIDs encode
+// sex/year - for the demo we just need 16 digits.
 function deriveNid(first: string, last: string, dob: string, sex: Sex | ""): string {
   const seed = `${slugify(first)}-${slugify(last)}-${dob}`;
-  // FNV-1a-ish digit accumulator; safe for ES2017 target.
   let acc = 0;
   for (const ch of seed) acc = (acc * 31 + ch.charCodeAt(0)) >>> 0;
   const sexDigit = sex === "F" ? "2" : "1";
   const yearTwo = dob.slice(2, 4) || "00";
-  // expand hash to a 13-digit tail by chaining modulo + length
   const baseTail = (acc.toString() + (acc * 1009).toString() + seed.length.toString()).replace(
     /\D/g,
     "",
@@ -41,36 +40,78 @@ function deriveNid(first: string, last: string, dob: string, sex: Sex | ""): str
   return `${sexDigit}${yearTwo}${tail}`.slice(0, 16);
 }
 
-function formatRwf(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
-}
+const fmt = (v: number) => new Intl.NumberFormat("en-US").format(v);
 
-type Field = {
-  label: string;
-  hint?: string;
-  required?: boolean;
-};
+const COVERAGE_PRESETS = [2_000_000, 5_000_000, 10_000_000, 20_000_000];
 
-function Label({ label, hint, required }: Field) {
+function SectionLabel({ n, title }: { n: string; title: string }) {
   return (
-    <span className="flex items-baseline justify-between">
-      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-        {label}
-        {required ? <span className="ml-0.5 text-red-500">*</span> : null}
-      </span>
-      {hint ? (
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{hint}</span>
-      ) : null}
-    </span>
+    <div className="mb-5 flex items-baseline gap-3.5">
+      <span className="mono text-[11px] text-muted">{n}</span>
+      <h3 className="serif m-0 text-[24px] leading-[1.1]">{title}</h3>
+    </div>
   );
 }
 
-const inputCls =
-  "mt-1 w-full rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm placeholder-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder-zinc-500";
+function FieldLabel({
+  label,
+  hint,
+  required,
+}: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="field-label flex items-baseline justify-between">
+      <span>
+        {label}
+        {required ? <span className="ml-0.5 text-[var(--bad)]">*</span> : null}
+      </span>
+      {hint ? (
+        <span className="text-[10px] tracking-normal normal-case text-muted-2">
+          {hint}
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
-const selectCls = inputCls;
-
-const COVERAGE_PRESETS = [2_000_000, 5_000_000, 10_000_000, 20_000_000];
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; key?: string; main: string; sub?: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="grid border border-line" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+      {options.map((o, i) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={`px-3.5 py-3 text-center text-[12px] transition-colors ${
+              i < options.length - 1 ? "border-r border-line" : ""
+            } ${active ? "bg-ink text-paper" : "bg-paper text-ink hover:bg-paper-2"}`}
+          >
+            {o.key ? (
+              <div className="mono text-[10px] opacity-60">{o.key}</div>
+            ) : null}
+            <div className={`${o.key ? "mt-0.5" : ""} font-medium`}>{o.main}</div>
+            {o.sub ? (
+              <div className="text-[10px] opacity-70">{o.sub}</div>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function ApplicantForm({ districts }: { districts: District[] }) {
   const router = useRouter();
@@ -79,31 +120,25 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
     [districts],
   );
 
-  // -- About you --------------------------------------------------------
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [dob, setDob] = useState("");
   const [sex, setSex] = useState<Sex | "">("");
   const [email, setEmail] = useState("");
 
-  // -- Location & work --------------------------------------------------
   const [district, setDistrict] = useState("");
   const [occTitle, setOccTitle] = useState("");
   const [occClass, setOccClass] = useState<OccupationClass>("I");
 
-  // -- Health -----------------------------------------------------------
   const [heightCm, setHeightCm] = useState("");
   const [weightKg, setWeightKg] = useState("");
   const [tobacco, setTobacco] = useState<Tobacco>("none");
   const [history, setHistory] = useState("");
 
-  // -- Coverage ---------------------------------------------------------
   const [sumInsured, setSumInsured] = useState(5_000_000);
 
-  // -- Documents --------------------------------------------------------
   const [files, setFiles] = useState<File[]>([]);
 
-  // -- Underwriter details (collapsed, pre-filled) ----------------------
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [nidOverride, setNidOverride] = useState("");
   const [phone, setPhone] = useState("");
@@ -114,8 +149,7 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
   const [alcohol, setAlcohol] = useState(0);
   const [exercise, setExercise] = useState(3);
 
-  // -- Derived ----------------------------------------------------------
-  const province = district ? (districtsByName.get(district) ?? "") : "";
+  const province = district ? districtsByName.get(district) ?? "" : "";
   const derivedNid = useMemo(
     () => (firstName && lastName && dob ? deriveNid(firstName, lastName, dob, sex) : ""),
     [firstName, lastName, dob, sex],
@@ -184,64 +218,72 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6" autoComplete="off">
+    <form onSubmit={onSubmit} autoComplete="off" className="space-y-9">
       {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <div
+          className="rounded border px-4 py-3 text-[13px]"
+          style={{
+            borderColor: "color-mix(in oklch, var(--bad) 30%, var(--line))",
+            background: "color-mix(in oklch, var(--bad) 8%, var(--paper))",
+            color: "var(--bad)",
+          }}
+        >
           {error}
         </div>
       ) : null}
 
-      <Section title="About you">
-        <div className="grid grid-cols-2 gap-3">
-          <label>
-            <Label label="First name" required />
+      <section>
+        <SectionLabel n="01" title="About you" />
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2">
+          <label className="block">
+            <FieldLabel label="First name" required />
             <input
-              className={inputCls}
+              className="field"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
               autoComplete="given-name"
             />
           </label>
-          <label>
-            <Label label="Last name" required />
+          <label className="block">
+            <FieldLabel label="Last name" required />
             <input
-              className={inputCls}
+              className="field"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
               autoComplete="family-name"
             />
           </label>
-          <label>
-            <Label label="Date of birth" required />
+          <label className="block">
+            <FieldLabel label="Date of birth" required />
             <input
               type="date"
-              className={inputCls}
+              className="field"
               value={dob}
               onChange={(e) => setDob(e.target.value)}
               max={TODAY}
               required
             />
           </label>
-          <label>
-            <Label label="Sex" required />
-            <select
-              className={selectCls}
-              value={sex}
-              onChange={(e) => setSex(e.target.value as Sex | "")}
-              required
-            >
-              <option value="">—</option>
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-            </select>
-          </label>
-          <label className="col-span-2">
-            <Label label="Email" hint="we'll send the decision here" required />
+          <div>
+            <FieldLabel label="Sex" required />
+            <div className="mt-2">
+              <Segmented<Sex | "">
+                value={sex}
+                onChange={setSex}
+                options={[
+                  { value: "F", main: "Female" },
+                  { value: "M", main: "Male" },
+                ]}
+              />
+            </div>
+          </div>
+          <label className="block sm:col-span-2">
+            <FieldLabel label="Email" hint="we'll send the decision here" required />
             <input
               type="email"
-              className={inputCls}
+              className="field"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -249,14 +291,15 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
             />
           </label>
         </div>
-      </Section>
+      </section>
 
-      <Section title="Location and work">
-        <div className="grid grid-cols-2 gap-3">
-          <label>
-            <Label label="District" required />
+      <section>
+        <SectionLabel n="02" title="Location & work" />
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2">
+          <label className="block">
+            <FieldLabel label="District" hint={province ? `${province} province` : undefined} required />
             <select
-              className={selectCls}
+              className="field"
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
               required
@@ -268,44 +311,42 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
                 </option>
               ))}
             </select>
-            {province ? (
-              <span className="mt-1 block text-[10px] text-zinc-500 dark:text-zinc-400">
-                {province} province
-              </span>
-            ) : null}
           </label>
-          <label>
-            <Label label="Occupation" required />
+          <label className="block">
+            <FieldLabel label="Occupation" required />
             <input
-              className={inputCls}
+              className="field"
               value={occTitle}
               onChange={(e) => setOccTitle(e.target.value)}
               placeholder="e.g. Teacher"
               required
             />
           </label>
-          <label className="col-span-2">
-            <Label label="Job risk level" />
-            <select
-              className={selectCls}
-              value={occClass}
-              onChange={(e) => setOccClass(e.target.value as OccupationClass)}
-            >
-              <option value="I">Office / professional / teacher</option>
-              <option value="II">Farmer / nurse / construction</option>
-              <option value="III">Mining / motorcycle taxi / pesticides</option>
-            </select>
-          </label>
+          <div className="sm:col-span-2">
+            <FieldLabel label="Job risk class" />
+            <div className="mt-2">
+              <Segmented<OccupationClass>
+                value={occClass}
+                onChange={setOccClass}
+                options={[
+                  { value: "I",   key: "CLASS I",   main: "Office / professional" },
+                  { value: "II",  key: "CLASS II",  main: "Manual / outdoor" },
+                  { value: "III", key: "CLASS III", main: "Hazardous" },
+                ]}
+              />
+            </div>
+          </div>
         </div>
-      </Section>
+      </section>
 
-      <Section title="Your health">
-        <div className="grid grid-cols-2 gap-3">
-          <label>
-            <Label label="Height (cm)" required />
+      <section>
+        <SectionLabel n="03" title="Health" />
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2">
+          <label className="block">
+            <FieldLabel label="Height (cm)" required />
             <input
               type="number"
-              className={inputCls}
+              className="field"
               value={heightCm}
               onChange={(e) => setHeightCm(e.target.value)}
               min={50}
@@ -315,11 +356,11 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
               required
             />
           </label>
-          <label>
-            <Label label="Weight (kg)" required />
+          <label className="block">
+            <FieldLabel label="Weight (kg)" required />
             <input
               type="number"
-              className={inputCls}
+              className="field"
               value={weightKg}
               onChange={(e) => setWeightKg(e.target.value)}
               min={20}
@@ -329,10 +370,10 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
               required
             />
           </label>
-          <label className="col-span-2">
-            <Label label="Smoking" />
+          <label className="block sm:col-span-2">
+            <FieldLabel label="Smoking" />
             <select
-              className={selectCls}
+              className="field"
               value={tobacco}
               onChange={(e) => setTobacco(e.target.value as Tobacco)}
             >
@@ -341,13 +382,10 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
               <option value="daily">Daily</option>
             </select>
           </label>
-          <label className="col-span-2">
-            <Label
-              label="Existing conditions"
-              hint="optional — one per line"
-            />
+          <label className="block sm:col-span-2">
+            <FieldLabel label="Existing conditions" hint="optional · one per line" />
             <textarea
-              className={`${inputCls} font-mono text-xs`}
+              className="field mono text-[13px]"
               rows={3}
               value={history}
               onChange={(e) => setHistory(e.target.value)}
@@ -355,30 +393,31 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
             />
           </label>
         </div>
-      </Section>
+      </section>
 
-      <Section title="Coverage">
-        <Label label="Coverage amount (RWF)" required />
-        <div className="mt-1 flex flex-wrap gap-2">
+      <section>
+        <SectionLabel n="04" title="Coverage" />
+        <div className="serif tnum text-[44px] leading-none sm:text-[48px]">
+          {fmt(sumInsured)}{" "}
+          <span className="text-[18px] text-muted">RWF</span>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
           {COVERAGE_PRESETS.map((amt) => (
             <button
               key={amt}
               type="button"
               onClick={() => setSumInsured(amt)}
-              className={`rounded-md border px-3 py-1 text-xs font-medium ${
-                sumInsured === amt
-                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900"
-                  : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-              }`}
+              className={amt === sumInsured ? "chip solid" : "chip"}
             >
-              {formatRwf(amt)}
+              {fmt(amt / 1_000_000)}M
             </button>
           ))}
         </div>
-        <div className="mt-2">
+        <label className="mt-3 block">
+          <FieldLabel label="Custom amount (RWF)" hint="multiples of 500,000" />
           <input
             type="number"
-            className={inputCls}
+            className="field"
             value={sumInsured}
             onChange={(e) => setSumInsured(Number(e.target.value) || 0)}
             min={500_000}
@@ -386,261 +425,167 @@ export function ApplicantForm({ districts }: { districts: District[] }) {
             step={500_000}
             required
           />
-          <span className="mt-1 block text-[10px] text-zinc-500 dark:text-zinc-400">
-            {formatRwf(sumInsured)} RWF
-          </span>
-        </div>
-      </Section>
+        </label>
+      </section>
 
-      <Section title="Medical documents (optional)">
-        <Label label="PDFs" hint="lab results, doctor's notes, etc." />
-        <input
-          type="file"
-          multiple
-          accept="application/pdf"
-          className={`${inputCls} file:mr-3 file:rounded file:border-0 file:bg-zinc-100 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-800`}
-          onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-        />
+      <section>
+        <SectionLabel n="05" title="Medical documents" />
+        <label className="block cursor-pointer rounded border border-dashed border-line-2 px-6 py-7 text-center text-muted">
+          <div className="serif text-[18px] text-ink">Drop PDFs here</div>
+          <div className="mt-1 text-[12px]">optional · lab results, doctor&apos;s notes</div>
+          <input
+            type="file"
+            multiple
+            accept="application/pdf"
+            className="hidden"
+            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+          />
+        </label>
         {files.length > 0 ? (
-          <ul className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <ul className="mt-3 space-y-1 text-[12px] text-muted">
             {files.map((f) => (
-              <li key={f.name}>
+              <li key={f.name} className="mono">
                 {f.name} · {(f.size / 1024).toFixed(1)} KB
               </li>
             ))}
           </ul>
         ) : null}
-      </Section>
+      </section>
 
-      <Advanced
-        open={showAdvanced}
-        onToggle={() => setShowAdvanced((v) => !v)}
-        derivedNid={derivedNid}
-        nid={nid}
-        nidOverride={nidOverride}
-        setNidOverride={setNidOverride}
-        phone={phone}
-        setPhone={setPhone}
-        ubudehe={ubudehe}
-        setUbudehe={setUbudehe}
-        cbhi={cbhi}
-        setCbhi={setCbhi}
-        sbp={sbp}
-        setSbp={setSbp}
-        dbp={dbp}
-        setDbp={setDbp}
-        alcohol={alcohol}
-        setAlcohol={setAlcohol}
-        exercise={exercise}
-        setExercise={setExercise}
-      />
-
-      <div className="flex items-center gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <section>
         <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          aria-expanded={showAdvanced}
+          className="flex w-full items-center justify-between rounded border border-line-2 bg-paper px-4 py-3 text-left text-[13px] hover:bg-paper-2"
         >
-          {submitting ? "submitting…" : "run underwriting"}
+          <span>
+            + Underwriter details{" "}
+            <span className="text-muted">· optional</span>
+          </span>
+          <span className="text-muted">{showAdvanced ? "−" : "›"}</span>
         </button>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          The pipeline will start in the background and stream results live.
+
+        {showAdvanced ? (
+          <div className="mt-4 space-y-6 rounded border border-line bg-paper p-5">
+            <label className="block">
+              <FieldLabel
+                label="National ID"
+                hint={derivedNid && !nidOverride ? "auto-generated from name + DOB" : "16 digits"}
+              />
+              <input
+                className="field mono"
+                value={nid}
+                onChange={(e) =>
+                  setNidOverride(e.target.value.replace(/\D/g, "").slice(0, 16))
+                }
+                pattern="\d{16}"
+                minLength={16}
+                maxLength={16}
+                inputMode="numeric"
+              />
+            </label>
+
+            <label className="block">
+              <FieldLabel label="Phone" hint="optional" />
+              <input
+                type="tel"
+                className="field"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+250788000000"
+                autoComplete="tel"
+              />
+            </label>
+
+            <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2">
+              <label className="block">
+                <FieldLabel label="Ubudehe category" hint="3 is typical" />
+                <select
+                  className="field"
+                  value={String(ubudehe)}
+                  onChange={(e) =>
+                    setUbudehe(Number(e.target.value) as UbudeheCategory)
+                  }
+                >
+                  <option value="1">1 - most vulnerable</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4 - least vulnerable</option>
+                </select>
+              </label>
+              <label className="block">
+                <FieldLabel label="Mutuelle de Santé" />
+                <select
+                  className="field"
+                  value={cbhi}
+                  onChange={(e) => setCbhi(e.target.value as CbhiStatus)}
+                >
+                  <option value="enrolled">Enrolled</option>
+                  <option value="lapsed">Lapsed</option>
+                  <option value="not_applicable">Not applicable</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+              <label className="block">
+                <FieldLabel label="SBP" hint="mmHg" />
+                <input
+                  type="number"
+                  className="field"
+                  value={sbp}
+                  onChange={(e) => setSbp(e.target.value)}
+                  min={60}
+                  max={250}
+                />
+              </label>
+              <label className="block">
+                <FieldLabel label="DBP" hint="mmHg" />
+                <input
+                  type="number"
+                  className="field"
+                  value={dbp}
+                  onChange={(e) => setDbp(e.target.value)}
+                  min={40}
+                  max={150}
+                />
+              </label>
+              <label className="block">
+                <FieldLabel label="Alcohol drinks/wk" />
+                <input
+                  type="number"
+                  className="field"
+                  value={alcohol}
+                  onChange={(e) => setAlcohol(Number(e.target.value) || 0)}
+                  min={0}
+                  max={100}
+                />
+              </label>
+              <label className="block">
+                <FieldLabel label="Exercise days/wk" />
+                <input
+                  type="number"
+                  className="field"
+                  value={exercise}
+                  onChange={(e) => setExercise(Number(e.target.value) || 0)}
+                  min={0}
+                  max={7}
+                />
+              </label>
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <div className="flex flex-wrap items-center gap-4 border-t border-line pt-5">
+        <button type="submit" disabled={submitting} className="btn">
+          {submitting ? "Submitting…" : "Run underwriting →"}
+        </button>
+        <span className="text-[12px] text-muted">
+          Streams live · usually under 15 seconds
         </span>
       </div>
     </form>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        {title}
-      </h2>
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-type AdvancedProps = {
-  open: boolean;
-  onToggle: () => void;
-  derivedNid: string;
-  nid: string;
-  nidOverride: string;
-  setNidOverride: (v: string) => void;
-  phone: string;
-  setPhone: (v: string) => void;
-  ubudehe: UbudeheCategory;
-  setUbudehe: (v: UbudeheCategory) => void;
-  cbhi: CbhiStatus;
-  setCbhi: (v: CbhiStatus) => void;
-  sbp: string;
-  setSbp: (v: string) => void;
-  dbp: string;
-  setDbp: (v: string) => void;
-  alcohol: number;
-  setAlcohol: (v: number) => void;
-  exercise: number;
-  setExercise: (v: number) => void;
-};
-
-function Advanced(props: AdvancedProps) {
-  const {
-    open,
-    onToggle,
-    derivedNid,
-    nid,
-    nidOverride,
-    setNidOverride,
-    phone,
-    setPhone,
-    ubudehe,
-    setUbudehe,
-    cbhi,
-    setCbhi,
-    sbp,
-    setSbp,
-    dbp,
-    setDbp,
-    alcohol,
-    setAlcohol,
-    exercise,
-    setExercise,
-  } = props;
-
-  return (
-    <section>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900"
-        aria-expanded={open}
-      >
-        <span>
-          Underwriter details
-          <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
-            optional · pre-filled with sensible defaults
-          </span>
-        </span>
-        <span className="text-zinc-400">{open ? "−" : "+"}</span>
-      </button>
-      {open ? (
-        <div className="mt-2 space-y-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <label className="block">
-            <Label
-              label="National ID"
-              hint={
-                derivedNid && !nidOverride
-                  ? "auto-generated from name + DOB"
-                  : "16 digits"
-              }
-            />
-            <input
-              className={inputCls}
-              value={nid}
-              onChange={(e) =>
-                setNidOverride(e.target.value.replace(/\D/g, "").slice(0, 16))
-              }
-              pattern="\d{16}"
-              minLength={16}
-              maxLength={16}
-              inputMode="numeric"
-            />
-          </label>
-
-          <label className="block">
-            <Label label="Phone" hint="optional" />
-            <input
-              type="tel"
-              className={inputCls}
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+250788000000"
-              autoComplete="tel"
-            />
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label>
-              <Label label="Ubudehe category" hint="3 is typical" />
-              <select
-                className={selectCls}
-                value={String(ubudehe)}
-                onChange={(e) =>
-                  setUbudehe(Number(e.target.value) as UbudeheCategory)
-                }
-              >
-                <option value="1">1 — most vulnerable</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4 — least vulnerable</option>
-              </select>
-            </label>
-            <label>
-              <Label label="Mutuelle de Santé" />
-              <select
-                className={selectCls}
-                value={cbhi}
-                onChange={(e) => setCbhi(e.target.value as CbhiStatus)}
-              >
-                <option value="enrolled">Enrolled</option>
-                <option value="lapsed">Lapsed</option>
-                <option value="not_applicable">Not applicable</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-4 gap-3">
-            <label>
-              <Label label="SBP" hint="mmHg" />
-              <input
-                type="number"
-                className={inputCls}
-                value={sbp}
-                onChange={(e) => setSbp(e.target.value)}
-                min={60}
-                max={250}
-              />
-            </label>
-            <label>
-              <Label label="DBP" hint="mmHg" />
-              <input
-                type="number"
-                className={inputCls}
-                value={dbp}
-                onChange={(e) => setDbp(e.target.value)}
-                min={40}
-                max={150}
-              />
-            </label>
-            <label>
-              <Label label="Alcohol drinks/wk" />
-              <input
-                type="number"
-                className={inputCls}
-                value={alcohol}
-                onChange={(e) => setAlcohol(Number(e.target.value) || 0)}
-                min={0}
-                max={100}
-              />
-            </label>
-            <label>
-              <Label label="Exercise days/wk" />
-              <input
-                type="number"
-                className={inputCls}
-                value={exercise}
-                onChange={(e) => setExercise(Number(e.target.value) || 0)}
-                min={0}
-                max={7}
-              />
-            </label>
-          </div>
-        </div>
-      ) : null}
-    </section>
   );
 }

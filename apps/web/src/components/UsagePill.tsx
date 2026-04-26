@@ -58,20 +58,20 @@ export function UsagePill({
   const elapsed = now - startedAt;
 
   return (
-    <div className="inline-flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-      <span className="tabular-nums" title={`${u.total_tokens} tokens across ${u.calls} calls`}>
-        <span className="text-zinc-400 dark:text-zinc-500">tokens</span>{" "}
-        <span className="text-zinc-900 dark:text-zinc-50">{formatTokens(u.total_tokens)}</span>
+    <div className="mono inline-flex items-center gap-3 rounded-full border border-line bg-paper px-3.5 py-1.5 text-[11px] text-ink-2">
+      <span className="tnum" title={`${u.total_tokens} tokens across ${u.calls} calls`}>
+        <span className="text-muted">tokens</span>{" "}
+        <span className="text-ink">{formatTokens(u.total_tokens)}</span>
       </span>
-      <span className="text-zinc-300 dark:text-zinc-700">·</span>
-      <span className="tabular-nums" title="Estimated cost in USD">
-        <span className="text-zinc-400 dark:text-zinc-500">cost</span>{" "}
-        <span className="text-zinc-900 dark:text-zinc-50">{formatCost(u.cost_usd)}</span>
+      <span className="text-muted-2">·</span>
+      <span className="tnum" title="Estimated cost in USD">
+        <span className="text-muted">cost</span>{" "}
+        <span className="text-ink">{formatCost(u.cost_usd)}</span>
       </span>
-      <span className="text-zinc-300 dark:text-zinc-700">·</span>
-      <span className="tabular-nums">
-        <span className="text-zinc-400 dark:text-zinc-500">elapsed</span>{" "}
-        <span className="text-zinc-900 dark:text-zinc-50">{formatElapsed(elapsed)}</span>
+      <span className="text-muted-2">·</span>
+      <span className="tnum">
+        <span className="text-muted">elapsed</span>{" "}
+        <span className="text-ink">{formatElapsed(elapsed)}</span>
       </span>
     </div>
   );

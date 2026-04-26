@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { BandPill } from "@/components/ui/BandPill";
+import { VerdictText } from "@/components/ui/VerdictText";
 import { useConfirm, useToast } from "@/components/ui/providers";
 import { clearTerminalApplications } from "@/lib/api";
 import type { ApplicationListItem } from "@/lib/types";
@@ -26,30 +28,30 @@ const TAB_LABELS: Record<TabKey, string> = {
   failed: "Failed",
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  queued: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-  running: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-  awaiting_review: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  modified: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-  reeval: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  sent: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  failed: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
-  cancelled: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-};
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatRelative(iso: string): string {
+  const t = new Date(iso).getTime();
+  const diff = Date.now() - t;
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.floor(h / 24);
+  return `${d} d ago`;
 }
 
 function matchesTab(tab: TabKey, status: string): boolean {
   if (tab === "all") return true;
   return STATUS_BY_TAB[tab].has(status);
+}
+
+function prettyName(applicantId: string): string {
+  return applicantId
+    .split("-")
+    .filter((part) => !/^\d/.test(part))
+    .map((p) => (p && p[0] ? p[0].toUpperCase() + p.slice(1) : ""))
+    .join(" ")
+    .trim() || applicantId;
 }
 
 export function RecentApplicationsList({ items }: { items: ApplicationListItem[] }) {
@@ -104,22 +106,23 @@ export function RecentApplicationsList({ items }: { items: ApplicationListItem[]
   }
 
   return (
-    <section className="mt-10">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Recent applications
+    <section>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <h2 className="serif m-0 text-[24px] tracking-[-0.01em]">
+          Recent decisions
         </h2>
         <button
           type="button"
           onClick={handleClear}
           disabled={clearing || !hasTerminal}
-          className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          className="btn ghost text-[12px]"
+          style={{ border: "1px solid var(--line-2)", padding: "6px 12px" }}
         >
           {clearing ? "Clearing…" : "Clear finished"}
         </button>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-1 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="mb-4 flex flex-wrap gap-1.5">
         {(Object.keys(TAB_LABELS) as TabKey[]).map((key) => {
           const active = tab === key;
           const count = counts[key];
@@ -128,19 +131,16 @@ export function RecentApplicationsList({ items }: { items: ApplicationListItem[]
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={`-mb-px border-b-2 px-3 py-1.5 text-xs font-medium transition-colors ${
-                active
-                  ? "border-zinc-900 text-zinc-900 dark:border-zinc-50 dark:text-zinc-50"
-                  : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-              }`}
+              className={active ? "chip solid" : "chip"}
             >
               {TAB_LABELS[key]}
               <span
-                className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
-                  active
-                    ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-                    : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                }`}
+                className="tnum"
+                style={{
+                  fontSize: 10,
+                  opacity: active ? 0.75 : 0.6,
+                  marginLeft: 2,
+                }}
               >
                 {count}
               </span>
@@ -150,50 +150,51 @@ export function RecentApplicationsList({ items }: { items: ApplicationListItem[]
       </div>
 
       {filtered.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50/50 px-5 py-6 text-center text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+        <p className="rounded border border-dashed border-line-2 bg-paper px-5 py-6 text-center text-[12px] text-muted">
           No applications in this view.
         </p>
       ) : (
-        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
-          {filtered.map((item) => (
-            <li key={item.task_id}>
-              <Link
-                href={`/applications/${item.task_id}`}
-                className="flex items-center justify-between gap-4 px-5 py-3 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900"
+        <div className="overflow-hidden rounded border border-line bg-paper">
+          <div
+            className="hidden grid-cols-[170px_1.4fr_80px_110px_1fr_90px] gap-4 border-b border-line px-5 py-3 sm:grid"
+            style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}
+          >
+            <div>Reference</div>
+            <div>Applicant</div>
+            <div>Score</div>
+            <div>Band</div>
+            <div>Verdict</div>
+            <div className="text-right">When</div>
+          </div>
+          <ul className="m-0 list-none p-0">
+            {filtered.map((item, i) => (
+              <li
+                key={item.task_id}
+                className={i < filtered.length - 1 ? "border-b border-line" : ""}
               >
-                <div className="min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-                      {item.reference_number}
-                    </span>
-                    <span className="text-zinc-700 dark:text-zinc-300">{item.applicant_id}</span>
+                <Link
+                  href={`/applications/${item.task_id}`}
+                  className="grid grid-cols-1 gap-2 px-5 py-3.5 text-[13px] hover:bg-paper-2 sm:grid-cols-[170px_1.4fr_80px_110px_1fr_90px] sm:items-center sm:gap-4"
+                >
+                  <div className="mono text-[11px] text-muted">{item.reference_number}</div>
+                  <div className="font-medium">{prettyName(item.applicant_id)}</div>
+                  <div className="serif tnum text-[16px]">
+                    {item.risk_score !== null ? item.risk_score.toFixed(1) : "—"}
                   </div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {formatDate(item.created_at)}
-                    {item.risk_score !== null
-                      ? ` · risk ${item.risk_score} (${item.risk_band})`
-                      : ""}
+                  <div>
+                    <BandPill band={item.risk_band} />
                   </div>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  {item.verdict ? (
-                    <span className="text-zinc-600 dark:text-zinc-300">
-                      {item.verdict.replace(/_/g, " ")}
-                    </span>
-                  ) : null}
-                  <span
-                    className={`rounded-full px-2 py-0.5 ${
-                      STATUS_STYLES[item.status] ??
-                      "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
-                    }`}
-                  >
-                    {item.status.replace(/_/g, " ")}
-                  </span>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  <div>
+                    <VerdictText verdict={item.verdict} />
+                  </div>
+                  <div className="text-[12px] text-muted sm:text-right">
+                    {formatRelative(item.created_at)}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

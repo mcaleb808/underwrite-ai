@@ -1,22 +1,10 @@
 import type { RiskFactor } from "@/lib/types";
 
-const SOURCE_BADGES: Record<string, { label: string; className: string }> = {
-  declared: {
-    label: "From profile",
-    className: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-  },
-  parsed_medical: {
-    label: "From documents",
-    className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
-  },
-  district: {
-    label: "Local data",
-    className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  },
-  computed: {
-    label: "Calculated",
-    className: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-  },
+const SOURCE_LABEL: Record<string, string> = {
+  declared: "from profile",
+  parsed_medical: "from documents",
+  district: "local data",
+  computed: "calculated",
 };
 
 const FRIENDLY_NAMES: Record<string, string> = {
@@ -48,7 +36,6 @@ const FRIENDLY_NAMES: Record<string, string> = {
 
 function friendlyName(name: string): string {
   if (FRIENDLY_NAMES[name]) return FRIENDLY_NAMES[name];
-  // fallback: convert "snake_case" to "Snake case"
   return name
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase())
@@ -57,86 +44,48 @@ function friendlyName(name: string): string {
     .replace(/Dm/g, "Diabetes");
 }
 
-function bandFor(score: number): { label: string; className: string } {
-  if (score <= 25) return { label: "Low", className: "text-emerald-600 dark:text-emerald-400" };
-  if (score <= 50) return { label: "Moderate", className: "text-amber-600 dark:text-amber-400" };
-  if (score <= 75) return { label: "High", className: "text-orange-600 dark:text-orange-400" };
-  return { label: "Very high", className: "text-red-600 dark:text-red-400" };
-}
-
 export function RiskFactors({ factors }: { factors: RiskFactor[] }) {
   if (factors.length === 0) return null;
-  const total = factors.reduce((acc, f) => acc + f.contribution, 0);
-  const maxContribution = Math.max(1, ...factors.map((f) => f.contribution));
-  const band = bandFor(total);
+  const max = Math.max(1, ...factors.map((f) => f.contribution));
+  const top = factors.slice(0, 8);
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-      <header className="mb-4 flex items-end justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            What shaped your risk
-          </h2>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-            Each item below contributes points to the total risk score.
-          </p>
-        </div>
-        <div className="text-right">
-          <div className={`text-xl font-semibold tabular-nums ${band.className}`}>
-            {total.toFixed(1)}
-          </div>
-          <div className={`text-[10px] font-medium uppercase tracking-wide ${band.className}`}>
-            {band.label}
-          </div>
-        </div>
-      </header>
-
-      <ul className="space-y-2">
-        {factors.map((f, i) => {
-          const source =
-            SOURCE_BADGES[f.source] ??
-            ({ label: "Calculated", className: "bg-zinc-100 text-zinc-600" } as const);
-          const widthPct = Math.max(2, (f.contribution / maxContribution) * 100);
+    <div>
+      <div className="field-label">What shaped the score</div>
+      <ul className="m-0 mt-3 list-none p-0">
+        {top.map((f, i) => {
+          const pct = Math.max(2, (f.contribution / max) * 100);
           const isZero = f.contribution === 0;
           return (
             <li
               key={i}
-              className="rounded-md border border-zinc-100 bg-zinc-50/50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/40"
+              className="py-3"
+              style={{ borderBottom: i < top.length - 1 ? "1px solid var(--line)" : "none" }}
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                    {friendlyName(f.name)}
-                  </span>
-                  <span
-                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${source.className}`}
-                  >
-                    {source.label}
-                  </span>
-                </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[13px] font-medium">{friendlyName(f.name)}</span>
                 <span
-                  className={`shrink-0 text-sm font-semibold tabular-nums ${
-                    isZero ? "text-zinc-400" : "text-zinc-900 dark:text-zinc-50"
-                  }`}
+                  className="serif tnum text-[16px]"
+                  style={{ color: isZero ? "var(--muted-2)" : "var(--ink)" }}
                 >
                   {isZero ? "—" : `+${f.contribution.toFixed(1)}`}
                 </span>
               </div>
+              <div className="mono mt-0.5 text-[10px] text-muted">
+                {SOURCE_LABEL[f.source] ?? "calculated"}
+              </div>
               {!isZero ? (
-                <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-zinc-200/70 dark:bg-zinc-800">
-                  <div
-                    className="h-full rounded-full bg-zinc-700 dark:bg-zinc-300"
-                    style={{ width: `${widthPct}%` }}
-                  />
+                <div className="mt-1.5 h-[2px] w-full bg-line">
+                  <div className="h-full bg-ink" style={{ width: `${pct}%` }} />
                 </div>
               ) : null}
               {f.evidence ? (
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{f.evidence}</p>
+                <p className="mt-1 text-[11px] text-muted">{f.evidence}</p>
               ) : null}
             </li>
           );
         })}
       </ul>
-    </section>
+    </div>
   );
 }

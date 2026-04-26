@@ -2,19 +2,27 @@
 
 import { useState } from "react";
 
-import { approveDecision, getApplication, modifyDecision, reevaluate } from "@/lib/api";
+import { approveDecision, getApplication, modifyDecision } from "@/lib/api";
 import type { ApplicationStatus, Verdict } from "@/lib/types";
 
 const VERDICTS: Verdict[] = ["accept", "accept_with_conditions", "refer", "decline"];
-
 const FINAL_STATUSES = new Set(["sent", "approved"]);
+
+export type ApproveResult = {
+  email_status: string;
+  provider_message_id: string | null;
+};
 
 export function ReviewActions({
   status,
   onChange,
+  onApproved,
+  onReevaluate,
 }: {
   status: ApplicationStatus;
   onChange: (next: ApplicationStatus) => void;
+  onApproved?: (result: ApproveResult) => void;
+  onReevaluate: () => Promise<void>;
 }) {
   const decision = status.decision;
   const [editing, setEditing] = useState(false);
@@ -22,13 +30,10 @@ export function ReviewActions({
     (decision?.verdict as Verdict) ?? "accept",
   );
   const [loading, setLoading] = useState(decision?.premium_loading_pct ?? 0);
-  const [conditions, setConditions] = useState(
-    (decision?.conditions ?? []).join("\n"),
-  );
+  const [conditions, setConditions] = useState((decision?.conditions ?? []).join("\n"));
   const [reasoning, setReasoning] = useState(decision?.reasoning ?? "");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [emailNotice, setEmailNotice] = useState<string | null>(null);
 
   if (!decision) return null;
   const isFinal = FINAL_STATUSES.has(status.status);
@@ -58,10 +63,12 @@ export function ReviewActions({
   async function onApprove() {
     setBusy("approve");
     setError(null);
-    setEmailNotice(null);
     try {
       const result = await approveDecision(status.task_id, "underwriter@demo");
-      setEmailNotice(`email: ${result.email_status} (${result.provider_message_id ?? "—"})`);
+      onApproved?.({
+        email_status: result.email_status,
+        provider_message_id: result.provider_message_id,
+      });
       onChange(await getApplication(status.task_id));
     } catch (e) {
       setError(e instanceof Error ? e.message : "unknown error");
@@ -74,9 +81,7 @@ export function ReviewActions({
     setBusy("reeval");
     setError(null);
     try {
-      await reevaluate(status.task_id);
-      // page-level Live component will refresh on next 'closed' event
-      onChange({ ...status, status: "reeval", decision: null });
+      await onReevaluate();
     } catch (e) {
       setError(e instanceof Error ? e.message : "unknown error");
     } finally {
@@ -85,26 +90,16 @@ export function ReviewActions({
   }
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-      <header className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Review
-        </h2>
-        {isFinal ? (
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-            sent · approved by {status.approved_by ?? "?"}
-          </span>
-        ) : null}
-      </header>
-
+    <section className="mt-5">
       {editing ? (
-        <div className="space-y-3 text-sm">
+        <div className="rounded border border-line bg-paper p-5 space-y-5">
+          <div className="field-label">Modify decision</div>
           <label className="block">
-            <span className="text-xs text-zinc-500">Verdict</span>
+            <div className="field-label">Verdict</div>
             <select
               value={verdict}
               onChange={(e) => setVerdict(e.target.value as Verdict)}
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+              className="field"
             >
               {VERDICTS.map((v) => (
                 <option key={v} value={v}>
@@ -114,31 +109,31 @@ export function ReviewActions({
             </select>
           </label>
           <label className="block">
-            <span className="text-xs text-zinc-500">Premium loading (%)</span>
+            <div className="field-label">Premium loading (%)</div>
             <input
               type="number"
               value={loading}
               step="0.5"
               onChange={(e) => setLoading(Number(e.target.value))}
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+              className="field"
             />
           </label>
           <label className="block">
-            <span className="text-xs text-zinc-500">Conditions (one per line)</span>
+            <div className="field-label">Conditions (one per line)</div>
             <textarea
               value={conditions}
               onChange={(e) => setConditions(e.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
+              className="field mono text-[12px]"
             />
           </label>
           <label className="block">
-            <span className="text-xs text-zinc-500">Reasoning</span>
+            <div className="field-label">Reasoning</div>
             <textarea
               value={reasoning}
               onChange={(e) => setReasoning(e.target.value)}
               rows={5}
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+              className="field"
             />
           </label>
           <div className="flex gap-2">
@@ -146,53 +141,67 @@ export function ReviewActions({
               type="button"
               onClick={onSaveModify}
               disabled={busy === "modify"}
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900"
+              className="btn"
             >
-              {busy === "modify" ? "saving…" : "save changes"}
+              {busy === "modify" ? "Saving…" : "Save changes"}
             </button>
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              className="btn ghost"
+              style={{ border: "1px solid var(--line-2)" }}
             >
-              cancel
+              Cancel
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div
+          className="flex flex-wrap gap-2.5 rounded-b border border-t-0 border-line px-7 py-4 -mt-px"
+          style={{ background: "var(--paper-2)" }}
+        >
           <button
             type="button"
             onClick={onApprove}
             disabled={busy !== null || isFinal}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="btn"
           >
-            {busy === "approve" ? "sending…" : "approve & send email"}
+            {busy === "approve" ? (
+              <>
+                <span className="pulse-dot" />
+                Sending email…
+              </>
+            ) : isFinal ? (
+              "✓ Approved"
+            ) : (
+              "Approve & notify applicant"
+            )}
           </button>
           <button
             type="button"
             onClick={() => setEditing(true)}
             disabled={busy !== null || isFinal}
-            className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            className="btn ghost"
+            style={{ border: "1px solid var(--line-2)" }}
           >
-            modify
+            Modify
           </button>
           <button
             type="button"
             onClick={onReeval}
             disabled={busy !== null || isFinal}
-            className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            className="btn ghost"
+            style={{ border: "1px solid var(--line-2)" }}
           >
-            {busy === "reeval" ? "queuing…" : "re-evaluate"}
+            {busy === "reeval" ? "Queuing…" : "Re-evaluate"}
           </button>
         </div>
       )}
 
-      {emailNotice ? (
-        <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400">{emailNotice}</p>
-      ) : null}
       {error ? (
-        <p className="mt-3 text-xs text-red-600 dark:text-red-400">{error}</p>
+        <p className="mt-3 text-[12px]" style={{ color: "var(--bad)" }}>
+          {error}
+        </p>
       ) : null}
     </section>
   );
