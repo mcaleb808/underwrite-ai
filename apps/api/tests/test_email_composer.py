@@ -1,4 +1,4 @@
-"""Composer tests — no real LLM calls."""
+"""Composer tests - no real LLM calls."""
 
 import pytest
 
@@ -46,8 +46,8 @@ class _FakeLLM:
 
 def test_compose_returns_llm_output_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
     expected = composer_mod.ComposedEmail(
-        subject="UnderwriteAI — Approved (UW-2026-X)",
-        body="Dear Alice,\n\nGreat news — your coverage is approved.\n\n— UnderwriteAI",
+        subject="UnderwriteAI - Approved (UW-2026-X)",
+        body="Dear Alice,\n\nGreat news - your coverage is approved.\n\n-- UnderwriteAI",
     )
     chain = _FakeChain(expected)
     monkeypatch.setattr(composer_mod, "_llm", lambda: _FakeLLM(chain))
@@ -75,8 +75,8 @@ def test_user_prompt_does_not_include_reasoning_or_citations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     expected = composer_mod.ComposedEmail(
-        subject="X — Y (UW-X)",
-        body="Dear Alice,\n\nThis is a sufficiently long stub body for tests.\n\n— X",
+        subject="X - Y (UW-X)",
+        body="Dear Alice,\n\nThis is a sufficiently long stub body for tests.\n\n-- X",
     )
     chain = _FakeChain(expected)
     monkeypatch.setattr(composer_mod, "_llm", lambda: _FakeLLM(chain))
@@ -98,8 +98,8 @@ def test_user_prompt_signals_premium_adjustment_qualitatively(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     expected = composer_mod.ComposedEmail(
-        subject="X — Y (R)",
-        body="Dear Alice,\n\nThis is a sufficiently long stub body for tests.\n\n— X",
+        subject="X - Y (R)",
+        body="Dear Alice,\n\nThis is a sufficiently long stub body for tests.\n\n-- X",
     )
     chain = _FakeChain(expected)
     monkeypatch.setattr(composer_mod, "_llm", lambda: _FakeLLM(chain))

@@ -1,4 +1,4 @@
-"""Unit tests for the email providers — no real HTTP calls."""
+"""Unit tests for the email providers - no real HTTP calls."""
 
 import pytest
 

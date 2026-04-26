@@ -1,4 +1,4 @@
-"""Rwanda region adapter — fairness checks and country-specific rules."""
+"""Rwanda region adapter - fairness checks and country-specific rules."""
 
 import re
 
@@ -50,7 +50,7 @@ class RwandaAdapter:
     def fairness_checks(self, draft: DecisionDraft, applicant: ApplicantProfile) -> list[str]:
         """Deterministic regex scan for bias terms in adverse decisions.
 
-        This is a belt-and-braces backstop — the LLM critic may miss bias,
+        This is a belt-and-braces backstop - the LLM critic may miss bias,
         but the regex cannot.
         """
         issues: list[str] = []

@@ -1,4 +1,4 @@
-"""Unit tests for the markdown chunker — no API calls needed."""
+"""Unit tests for the markdown chunker - no API calls needed."""
 
 from pathlib import Path
 

@@ -1,4 +1,4 @@
-"""Region adapters — protocol for country-specific underwriting logic."""
+"""Region adapters - protocol for country-specific underwriting logic."""
 
 from typing import Protocol, runtime_checkable
 

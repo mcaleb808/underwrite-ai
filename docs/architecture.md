@@ -29,12 +29,12 @@ Out of scope (for the capstone):
 
 ```mermaid
 flowchart TB
-  subgraph web["apps/web — Next.js 16"]
+  subgraph web["apps/web - Next.js 16"]
     Home["/ persona picker + recent runs"]
     Detail["/applications/[taskId] live timeline + review"]
   end
 
-  subgraph api["apps/api — FastAPI"]
+  subgraph api["apps/api - FastAPI"]
     Apps[applications router]
     Pers[personas router]
     Orch[orchestrator]
@@ -109,7 +109,7 @@ class UnderwritingState(TypedDict, total=False):
 
 Three append-only fields (`parsed_medical`, `events`, `errors`) use the `add`
 reducer so parallel branches can safely contribute. Everything else gets
-overwritten on each node return — the simpler default that matches how those
+overwritten on each node return - the simpler default that matches how those
 fields are used.
 
 ## Agents
@@ -136,7 +136,7 @@ flowchart LR
 
 `doc_parser` and `guidelines_rag` are independent and run in parallel after
 input. The critic loop is hard-capped at `MAX_REVISIONS = 2` in
-`graph/routing.py` — beyond that the latest draft becomes the final verdict
+`graph/routing.py` - beyond that the latest draft becomes the final verdict
 even if the critic still has issues. This keeps the demo bounded while
 preserving the audit trail in the timeline.
 
@@ -144,7 +144,7 @@ preserving the audit trail in the timeline.
 
 A real underwriting reviewer needs the LLM critic's opinion as a *signal*, not
 a veto. We surface "issues remaining" in the dashboard so a human can see
-exactly what the critic flagged before approving — that's the human-in-the-loop
+exactly what the critic flagged before approving - that's the human-in-the-loop
 contract.
 
 ## RAG over the underwriting manual
@@ -153,7 +153,7 @@ The manual is a single markdown file with one H2 section per rule
 (`UW-001`–`UW-140`). The chunker (`src/rag/chunks.py`) splits on each H2 heading, parses
 the rule id from the heading, and uses the entire section as one chunk. There
 are only 15 rules, so chunk-splitting strategies (semantic, recursive, sliding
-window) would be overkill — chunk-by-section maps 1:1 to the underwriter's
+window) would be overkill - chunk-by-section maps 1:1 to the underwriter's
 mental model and keeps citations clean.
 
 Embeddings are OpenAI `text-embedding-3-small` written through Chroma's
@@ -161,12 +161,12 @@ Embeddings are OpenAI `text-embedding-3-small` written through Chroma's
 similarity.
 
 `guidelines_rag` builds a query from the applicant's declared history,
-occupation, sum insured, and computed risk-factor names — then issues a
+occupation, sum insured, and computed risk-factor names - then issues a
 top-6 semantic search **plus** an explicit fetch of four pinned foundational
 rules (`UW-070` district endemic, `UW-090` Ubudehe equity, `UW-130`
 score-to-verdict, `UW-140` critic checks). Pinning came out of an early failure
 mode where the drafter cited `UW-090` to refuse a district loading even though
-that rule wasn't in the retrieved set — the critic correctly caught it, but
+that rule wasn't in the retrieved set - the critic correctly caught it, but
 the cleaner fix is to make sure the universally-applicable rules are always in
 scope.
 
@@ -175,15 +175,15 @@ scope.
 `src/adapters/__init__.py` defines a `RegionAdapter` Protocol; `rw.py`
 implements it. The adapter contributes:
 
-- `extra_risk_factors(applicant)` — context-only factors with `contribution=0`
+- `extra_risk_factors(applicant)` - context-only factors with `contribution=0`
   (Ubudehe category, CBHI status) so they appear in the audit trail but never
   shift the score.
-- `fairness_checks(draft, applicant)` — a deterministic regex scan for
+- `fairness_checks(draft, applicant)` - a deterministic regex scan for
   protected terms (`ubudehe`, `mutuelle`, `cbhi`, `district`-without-endemic)
   in the reasoning of any adverse verdict. The critic merges this with its
-  LLM-derived issues; the regex result is the floor — even if the LLM thinks
+  LLM-derived issues; the regex result is the floor - even if the LLM thinks
   everything's fine, the regex match still flips `needs_revision = True`.
-- `evidence_threshold_tier(sum_insured)` — maps RWF amounts to UW-120 tiers.
+- `evidence_threshold_tier(sum_insured)` - maps RWF amounts to UW-120 tiers.
 
 Adding a second region is a matter of writing another implementor and routing
 to it; nothing in the graph is country-specific.
@@ -239,7 +239,7 @@ erDiagram
 
 `Application` is per-applicant; `Task` is per-run (re-evaluation creates a new
 graph run on the same Application). `Event` is the system of record for what
-each node did — both for the SSE history replay and for post-hoc auditing.
+each node did - both for the SSE history replay and for post-hoc auditing.
 `DecisionRecord` is per-task and gets overwritten on `reeval` (the row is
 deleted before the new graph run starts).
 
@@ -274,7 +274,7 @@ sequenceDiagram
 The event bus (`services/event_bus.py`) is intentionally a tiny in-process
 `dict[task_id, set[asyncio.Queue]]`. Slow consumers are dropped (per-queue
 `maxsize=256`) rather than blocking the producer. For multi-worker deployment
-this swaps cleanly for Redis pub/sub — the publish/subscribe surface stays
+this swaps cleanly for Redis pub/sub - the publish/subscribe surface stays
 identical.
 
 ## Decision lifecycle
@@ -304,7 +304,7 @@ stateDiagram-v2
 ## Email providers
 
 `services/email/providers.py` defines an `EmailProvider` Protocol and two
-implementations: `console` (logs to stdout — the dev default) and `resend`
+implementations: `console` (logs to stdout - the dev default) and `resend`
 (via the Resend API). The factory `get_email_provider()` picks one based on
 `settings.EMAIL_PROVIDER` and is injected into the approve route via `Depends`.
 Tests swap in a `FakeEmailProvider` that captures sent messages without
@@ -338,8 +338,8 @@ exhausts retries so a failed approve never ships an empty email.
 
 ## What I'd build next
 
-1. **Alembic baseline** — make the schema upgradable.
-2. **Custom application form** — let users post their own `ApplicantProfile` and PDFs from the dashboard, not just seed personas.
-3. **PDF report generation** — attach a one-page decision summary to the approval email.
-4. **Replay-mode LLM fixtures** — record once, run free in CI; would unlock golden-path graph tests.
+1. **Alembic baseline** - make the schema upgradable.
+2. **Custom application form** - let users post their own `ApplicantProfile` and PDFs from the dashboard, not just seed personas.
+3. **PDF report generation** - attach a one-page decision summary to the approval email.
+4. **Replay-mode LLM fixtures** - record once, run free in CI; would unlock golden-path graph tests.
 5. **Redis pub/sub adapter** behind the same `event_bus` interface for multi-worker deployment.

@@ -1,4 +1,4 @@
-"""Smoke test — run the stub graph end-to-end and print event trace."""
+"""Smoke test - run the stub graph end-to-end and print event trace."""
 
 import uuid
 
@@ -13,7 +13,7 @@ def main():
 
     events = result.get("events", [])
     print(f"\n{'=' * 50}")
-    print(f"Smoke test complete — {len(events)} events captured")
+    print(f"Smoke test complete - {len(events)} events captured")
     print(f"{'=' * 50}")
     for i, event in enumerate(events, 1):
         print(f"  {i}. [{event.get('node', '?')}] {event.get('type', '?')}")

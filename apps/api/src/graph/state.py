@@ -1,4 +1,4 @@
-"""UnderwritingState — the contract every graph node must respect."""
+"""UnderwritingState - the contract every graph node must respect."""
 
 from __future__ import annotations
 

@@ -45,7 +45,7 @@ export function AppActions({
     try {
       await cancelApplication(status.task_id);
       onCancelRequested();
-      toast.info("Stopping the pipeline — the current step will finish first.");
+      toast.info("Stopping the pipeline - the current step will finish first.");
     } catch (err) {
       toast.error(`Couldn't stop the pipeline: ${String(err)}`);
     } finally {
@@ -81,7 +81,8 @@ export function AppActions({
           type="button"
           onClick={handleStop}
           disabled={working !== null}
-          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
+          className="btn warn text-[12px]"
+          style={{ padding: "6px 12px" }}
         >
           {working === "stop" ? "Stopping…" : "Stop pipeline"}
         </button>
@@ -91,7 +92,8 @@ export function AppActions({
           type="button"
           onClick={handleDelete}
           disabled={working !== null}
-          className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-zinc-950 dark:text-red-400 dark:hover:bg-red-950/40"
+          className="btn bad text-[12px]"
+          style={{ padding: "6px 12px" }}
         >
           {working === "delete" ? "Removing…" : "Remove"}
         </button>

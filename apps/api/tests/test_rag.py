@@ -2,7 +2,7 @@
 
 These tests verify that the top-1 result for each query matches
 the expected rule_id. They require a seeded Chroma store and an
-OpenAI API key for embeddings — marked slow so CI skips them.
+OpenAI API key for embeddings - marked slow so CI skips them.
 """
 
 import pytest

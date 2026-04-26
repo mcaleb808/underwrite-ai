@@ -377,7 +377,7 @@ async def delete_task(
         raise TaskNotFoundError(task_id)
     if task.status in {TaskStatus.running, TaskStatus.queued, TaskStatus.reeval}:
         raise InvalidStateTransitionError(
-            "cannot delete an in-flight task — cancel it first, then delete"
+            "cannot delete an in-flight task - cancel it first, then delete"
         )
     await _delete_task_rows(session, [task_id])
     await session.commit()

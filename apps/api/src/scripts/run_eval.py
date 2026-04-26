@@ -238,12 +238,11 @@ def _humanize_check(label: str, detail: str) -> str:
     if label.startswith("does not cite "):
         rule = label.removeprefix("does not cite ")
         return (
-            f"A prohibited rule ({rule}) was cited as adverse —"
-            " it shouldn't influence the decision."
+            f"A prohibited rule ({rule}) was cited as adverse and shouldn't influence the decision."
         )
     if label == "no bias flag":
         return (
-            "The critic raised a bias flag — it suspects the decision relied on"
+            "The critic raised a bias flag - it suspects the decision relied on"
             " prohibited factors (Ubudehe category, CBHI status, or district)."
         )
     return f"{label}: {detail}"
@@ -261,7 +260,7 @@ def _mermaid_pie(pass_count: int, fail_count: int) -> list[str]:
 
 
 def _mermaid_latency(results: list[CaseResult]) -> list[str]:
-    short_names = ", ".join(f'"{r.label.split(" — ")[0]}"' for r in results)
+    short_names = ", ".join(f'"{r.label.split(" - ")[0]}"' for r in results)
     seconds = ", ".join(str(round(r.duration_ms / 1000)) for r in results)
     return [
         "```mermaid",
@@ -285,10 +284,10 @@ def _render_report(results: list[CaseResult]) -> str:
         "",
         "We run the system end-to-end on a set of representative applicants and"
         " check whether each decision matches what a human underwriter would"
-        " expect. The applicants cover the full risk spectrum — from a healthy"
+        " expect. The applicants cover the full risk spectrum - from a healthy"
         " young adult to a senior with multiple cardiac conditions.",
         "",
-        f"**{pass_count} out of {total} cases passing — last checked {now}.**",
+        f"**{pass_count} out of {total} cases passing - last checked {now}.**",
         "",
     ]
     lines.extend(_mermaid_pie(pass_count, fail_count))
@@ -299,14 +298,14 @@ def _render_report(results: list[CaseResult]) -> str:
             "",
             "For each applicant we ask the graph to produce a decision and verify:",
             "",
-            "- **Verdict** — did the system land on a defensible call: approve,"
+            "- **Verdict** - did the system land on a defensible call: approve,"
             " approve with conditions, refer to a human, or decline?",
-            "- **Risk band** — does the assessed risk severity match the applicant's profile?",
-            "- **Premium uplift** — is the loading percentage reasonable for the"
+            "- **Risk band** - does the assessed risk severity match the applicant's profile?",
+            "- **Premium uplift** - is the loading percentage reasonable for the"
             " band, and inside the bounds the cited rules permit?",
-            "- **Cited rules** — did the decision cite the underwriting-manual"
+            "- **Cited rules** - did the decision cite the underwriting-manual"
             " rules a human reviewer would expect to see?",
-            "- **Fairness** — did the critic raise a false bias flag (suggesting"
+            "- **Fairness** - did the critic raise a false bias flag (suggesting"
             " the decision relied on prohibited factors like Ubudehe category,"
             " CBHI status, or district)?",
             "",

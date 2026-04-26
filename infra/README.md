@@ -4,11 +4,11 @@ Terraform stack for the api on Google Cloud Run, fronted by Vercel.
 
 ## What this provisions
 
-- **Artifact Registry** — Docker repo for the api image, with a cleanup policy that keeps the last 3 tagged versions and deletes untagged images after 7 days.
-- **Cloud Run service** — `min=0` / `max=1` (single instance for consistent per-instance sqlite state), 1 vCPU / 2 GB, scale-to-zero. Pulls `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `RESEND_API_KEY`, and `LANGFUSE_SECRET_KEY` from Secret Manager.
-- **Secret Manager** — four secrets, accessible only to the runtime service account.
-- **Runtime service account** — least-privilege: `secretAccessor` on each secret, `logging.logWriter` + `cloudtrace.agent` on the project. Nothing else.
-- **Workload Identity Federation** — lets the `main` branch of a specific GitHub repo impersonate a deploy service account without a JSON key in the repo. Feature branches and forks cannot.
+- **Artifact Registry** - Docker repo for the api image, with a cleanup policy that keeps the last 3 tagged versions and deletes untagged images after 7 days.
+- **Cloud Run service** - `min=0` / `max=1` (single instance for consistent per-instance sqlite state), 1 vCPU / 2 GB, scale-to-zero. Pulls `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `RESEND_API_KEY`, and `LANGFUSE_SECRET_KEY` from Secret Manager.
+- **Secret Manager** - four secrets, accessible only to the runtime service account.
+- **Runtime service account** - least-privilege: `secretAccessor` on each secret, `logging.logWriter` + `cloudtrace.agent` on the project. Nothing else.
+- **Workload Identity Federation** - lets the `main` branch of a specific GitHub repo impersonate a deploy service account without a JSON key in the repo. Feature branches and forks cannot.
 
 Email settings (`EMAIL_PROVIDER`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_OVERRIDE_TO`, `INSURER_NAME`) are plain Cloud Run env vars, configurable via the `email_*` variables in `terraform.tfvars`. Defaults match the local `.env.example`.
 
@@ -20,7 +20,7 @@ The Vercel side is configured manually (one-time): connect the repo on the Verce
 
 1. The first `terraform apply` creates the Cloud Run service pointing at a public placeholder image (`us-docker.pkg.dev/cloudrun/container/hello`) so the service can be created before any real image exists in Artifact Registry.
 2. The first push to `main` runs the deploy workflow, which builds + pushes the api image and rolls a new revision via `gcloud run deploy --image=...:${sha}`.
-3. Cloud Run's `image` field has `lifecycle.ignore_changes` set, so subsequent `terraform apply` runs leave the running image alone — CI owns it.
+3. Cloud Run's `image` field has `lifecycle.ignore_changes` set, so subsequent `terraform apply` runs leave the running image alone - CI owns it.
 
 ## One-time bootstrap
 

@@ -1,4 +1,4 @@
-"""Unit tests for deterministic underwriting tools — no LLM calls."""
+"""Unit tests for deterministic underwriting tools - no LLM calls."""
 
 import json
 from datetime import date

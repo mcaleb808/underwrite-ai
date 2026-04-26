@@ -1,6 +1,6 @@
 # UnderwriteAI Rwandan Underwriting Manual v1.0
 
-> **SYNTHETIC DATA** — This document is entirely fictional, created for demonstration
+> **SYNTHETIC DATA** - This document is entirely fictional, created for demonstration
 > purposes only. It does not represent real underwriting policy or medical guidance.
 
 ## UW-001 Eligibility and residency
@@ -81,7 +81,7 @@ Occupational risk is classified into three tiers based on physical hazard and en
 | II    | Farmer, construction worker, nurse                     | +10%    |
 | III   | Mining, commercial motorcycle (abamotari), pesticide handler | +30% |
 
-## UW-090 Ubudehe category — equity protection
+## UW-090 Ubudehe category - equity protection
 
 - Ubudehe 1–2: flag for premium subsidy eligibility; **no adverse loading** on socio-economic grounds.
 - Ubudehe 3–4: standard.
@@ -94,7 +94,7 @@ Occupational risk is classified into three tiers based on physical hazard and en
 - **High-risk pregnancy** (pre-eclampsia history, gestational diabetes, multiple gestation): refer to senior underwriter.
 - Pregnancy status alone must never result in decline or adverse loading.
 
-## UW-110 Lifestyle — tobacco and alcohol
+## UW-110 Lifestyle - tobacco and alcohol
 
 - **Tobacco (any form)**: +20% loading. If concurrent with hypertension (UW-030) or HIV (UW-050), refer instead of loading.
 - **Alcohol > 21 units/week** (self-reported or documented): refer.

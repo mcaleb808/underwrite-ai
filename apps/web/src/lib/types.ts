@@ -1,4 +1,4 @@
-// Mirrors apps/api/src/schemas/*.py — keep in sync when those change.
+// Mirrors apps/api/src/schemas/*.py - keep in sync when those change.
 
 export type Verdict = "accept" | "accept_with_conditions" | "refer" | "decline";
 export type RiskBand = "low" | "moderate" | "high" | "very_high";

@@ -2,10 +2,10 @@
 
 Score is additive across domains and capped at 100. Each domain contributes a
 RiskFactor with `value` (the raw points before weight), `weight` (always 1.0
-in this v1 — kept for forward compat with calibrated weights), `contribution`
+in this v1 - kept for forward compat with calibrated weights), `contribution`
 (value * weight), and an `evidence` string the critic can audit.
 
-Pregnancy-only and Ubudehe categories are handled per UW-090/UW-100 — they
+Pregnancy-only and Ubudehe categories are handled per UW-090/UW-100 - they
 never produce adverse loading.
 """
 
@@ -132,7 +132,7 @@ def assess_risk(
             value=age_points,
             contribution=age_points,
             source="declared",
-            evidence=f"Age {age} — {_AGE_BAND_LABELS.get(age_band, age_band)}",
+            evidence=f"Age {age} - {_AGE_BAND_LABELS.get(age_band, age_band)}",
         )
     )
 
@@ -146,7 +146,7 @@ def assess_risk(
             value=bmi_points,
             contribution=bmi_points,
             source="declared",
-            evidence=f"BMI {bmi:.1f} — {_BMI_LABELS.get(bmi_class, bmi_class)}",
+            evidence=f"BMI {bmi:.1f} - {_BMI_LABELS.get(bmi_class, bmi_class)}",
         )
     )
 
@@ -166,7 +166,7 @@ def assess_risk(
                 value=htn_points,
                 contribution=htn_points,
                 source="declared",
-                evidence=f"{bp_part} — {status_part}",
+                evidence=f"{bp_part} - {status_part}",
             )
         )
 
@@ -185,7 +185,7 @@ def assess_risk(
                 value=dm_points,
                 contribution=dm_points,
                 source="declared",
-                evidence=f"Diabetes — {dm_status}",
+                evidence=f"Diabetes - {dm_status}",
             )
         )
 
@@ -280,7 +280,7 @@ def assess_risk(
                 contribution=occupation_points,
                 source="declared",
                 evidence=(
-                    f"{profile.occupation.title} — {class_descriptor}"
+                    f"{profile.occupation.title} - {class_descriptor}"
                     if class_descriptor
                     else profile.occupation.title
                 ),

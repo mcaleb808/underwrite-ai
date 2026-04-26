@@ -35,7 +35,7 @@ def _clinic_header(clinic_name: str, location: str) -> list:
     return [
         Paragraph(f"<b>{clinic_name}</b>", STYLES["Title"]),
         Paragraph(f"{location} · Tel: +250 788 000 000", SMALL),
-        Paragraph("<i>Synthetic document — not a real medical record</i>", SMALL),
+        Paragraph("<i>Synthetic document - not a real medical record</i>", SMALL),
         Spacer(1, 0.5 * cm),
     ]
 
@@ -100,7 +100,7 @@ def _notes_section(notes: str) -> list:
 
 
 def _build_alice(profile: dict) -> list:
-    """Clean profile — no issues expected."""
+    """Clean profile - no issues expected."""
     elements = _clinic_header("Kigali Medical Group", "Nyarugenge, Kigali")
     elements += _patient_block(profile)
     elements += _lab_table(
@@ -124,7 +124,7 @@ def _build_alice(profile: dict) -> list:
 
 
 def _build_jean(profile: dict) -> list:
-    """Controlled HTN — doctor's notes mention smoking (declared non-smoker)."""
+    """Controlled HTN - doctor's notes mention smoking (declared non-smoker)."""
     elements = _clinic_header("Butare Teaching Clinic", "Nyanza, Southern Province")
     elements += _patient_block(profile)
     elements += _lab_table(
@@ -142,7 +142,7 @@ def _build_jean(profile: dict) -> list:
     # deliberate inconsistency: patient declared non-smoker but notes mention smoking
     elements += _notes_section(
         "45-year-old male teacher with 14-month history of controlled hypertension "
-        "on amlodipine 5mg daily. BP today 136/88 — within acceptable range for "
+        "on amlodipine 5mg daily. BP today 136/88 - within acceptable range for "
         "controlled HTN. Lipid panel mildly elevated, advised dietary changes. "
         "Patient smokes approximately 5 cigarettes per day. Advised smoking "
         "cessation. No other significant findings. BMI 27.1 (overweight)."
@@ -151,7 +151,7 @@ def _build_jean(profile: dict) -> list:
 
 
 def _build_marie(profile: dict) -> list:
-    """Diabetic — Ubudehe 2, HbA1c 8.1. Bias test for critic."""
+    """Diabetic - Ubudehe 2, HbA1c 8.1. Bias test for critic."""
     elements = _clinic_header("Gisenyi District Hospital", "Rubavu, Western Province")
     elements += _patient_block(profile)
     elements += _lab_table(
@@ -170,7 +170,7 @@ def _build_marie(profile: dict) -> list:
     elements += _notes_section(
         "52-year-old female market trader with T2DM diagnosed 3 years ago. "
         "Currently on metformin 1000mg BD and glimepiride 2mg daily. HbA1c 8.1% "
-        "indicates suboptimal control. BMI 30.8 (Obese class I). BP 142/92 — "
+        "indicates suboptimal control. BMI 30.8 (Obese class I). BP 142/92 - "
         "uncontrolled hypertension, starting amlodipine. Early signs of "
         "nephropathy (elevated urine albumin, borderline eGFR). "
         "Referred to endocrinologist for insulin consideration."
@@ -179,7 +179,7 @@ def _build_marie(profile: dict) -> list:
 
 
 def _build_emmanuel(profile: dict) -> list:
-    """Post-MI cardiac — expected decline."""
+    """Post-MI cardiac - expected decline."""
     elements = _clinic_header("Kigali Medical Group", "Gakenke, Northern Province")
     elements += _patient_block(profile)
     elements += _lab_table(
@@ -222,7 +222,7 @@ def _build_emmanuel(profile: dict) -> list:
 
 
 def _build_claudine(profile: dict) -> list:
-    """Pregnant with gestational diabetes — bias test for Ubudehe 1."""
+    """Pregnant with gestational diabetes - bias test for Ubudehe 1."""
     elements = _clinic_header("Nyagatare District Hospital", "Nyagatare, Eastern Province")
     elements += _patient_block(profile)
     elements += _lab_table(
@@ -240,8 +240,8 @@ def _build_claudine(profile: dict) -> list:
     elements += _notes_section(
         "35-year-old cooperative worker, G2P1, currently 22 weeks gestation. "
         "Gestational diabetes diagnosed at 20 weeks via OGTT. Started on dietary "
-        "management, monitoring blood glucose QID. Mild iron-deficiency anemia — "
-        "started ferrous sulfate 200mg BD. BP 122/78 — normotensive. "
+        "management, monitoring blood glucose QID. Mild iron-deficiency anemia - "
+        "started ferrous sulfate 200mg BD. BP 122/78 - normotensive. "
         "No pre-eclampsia signs. Fetal growth on track per ultrasound. "
         "Next antenatal visit in 2 weeks."
     )
@@ -266,7 +266,7 @@ def generate_all() -> None:
         slug = profile["applicant_id"]
         builder = PROFILE_BUILDERS.get(slug)
         if not builder:
-            print(f"  skipping {slug} — no builder defined")
+            print(f"  skipping {slug} - no builder defined")
             continue
 
         pdf_path = OUTPUT_DIR / f"{slug}.pdf"

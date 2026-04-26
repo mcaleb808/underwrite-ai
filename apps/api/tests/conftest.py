@@ -38,7 +38,7 @@ def _ensure_seed_pdfs() -> None:
             target = _DATA_DIR / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             if not target.exists():
-                # Minimal valid PDF header — pypdf can open it as 0-page doc
+                # Minimal valid PDF header - pypdf can open it as 0-page doc
                 target.write_bytes(b"%PDF-1.4\n%%EOF\n")
 
 
@@ -115,7 +115,7 @@ def client(
             body=(
                 f"Dear {first_name},\n\n"
                 f"This is a deterministic test-stub email body for {reference}.\n\n"
-                f"— UnderwriteAI"
+                f"-- UnderwriteAI"
             ),
         )
 
