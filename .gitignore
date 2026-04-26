@@ -48,6 +48,7 @@ capstone-*.md
 # scratch
 .playwright-mcp/
 *.png
+!docs/screenshots/*.png
 
 # Local-only AI assistant notes — do not commit
 CLAUDE.md
